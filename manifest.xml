@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="3">
+    <iq:application id="4ebf3d36-6550-4421-a393-457f6496bb1e"
+                    type="datafield"
+                    name="@Strings.AppName"
+                    entry="CourseRunApp"
+                    launcherIcon="@Drawables.LauncherIcon"
+                    minSdkVersion="3.2.0"
+                    version="0.1.0">
+        <iq:products>
+            <!-- Forerunner (256 KB data-field budget, except fr970 = 128 KB) -->
+            <iq:product id="fr955" />
+            <iq:product id="fr965" />
+            <iq:product id="fr265" />
+            <iq:product id="fr265s" />
+            <iq:product id="fr57042mm" />
+            <iq:product id="fr57047mm" />
+            <iq:product id="fr970" />
+            <!-- fenix 7 family -->
+            <iq:product id="fenix7" />
+            <iq:product id="fenix7s" />
+            <iq:product id="fenix7x" />
+            <iq:product id="fenix7pro" />
+            <iq:product id="fenix7spro" />
+            <iq:product id="fenix7xpro" />
+            <!-- epix Pro Gen 2 -->
+            <iq:product id="epix2pro42mm" />
+            <iq:product id="epix2pro47mm" />
+            <iq:product id="epix2pro51mm" />
+            <!-- fenix 8 family (128 KB data-field budget) -->
+            <iq:product id="fenix843mm" />
+            <iq:product id="fenix847mm" />
+            <iq:product id="fenix8pro47mm" />
+            <iq:product id="fenix8solar47mm" />
+            <iq:product id="fenix8solar51mm" />
+        </iq:products>
+        <iq:permissions>
+            <!-- Heart-rate zones, to resolve zone-based workout HR targets -->
+            <iq:uses-permission id="UserProfile" />
+        </iq:permissions>
+        <iq:languages>
+            <iq:language>eng</iq:language>
+        </iq:languages>
+        <iq:barrels />
+    </iq:application>
+</iq:manifest>

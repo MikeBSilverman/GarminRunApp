@@ -1,0 +1,10 @@
+<strings>
+    <string id="AppName">CourseRun</string>
+    <string id="CourseLengthTitle">Official course length</string>
+    <string id="CourseLengthPrompt">In miles or km (your watch units). 0 = use the course as loaded. Rescales course distance so a slightly long or short GPX still reads the official distance.</string>
+    <string id="SmoothTitle">Pace indicator smoothing (seconds)</string>
+    <string id="RollingUnitTitle">Rolling pace window</string>
+    <string id="UnitAuto">Watch units</string>
+    <string id="UnitMile">1 mile</string>
+    <string id="UnitKm">1 km</string>
+</strings>

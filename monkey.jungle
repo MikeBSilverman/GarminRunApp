@@ -1,0 +1,5 @@
+project.manifest = manifest.xml
+
+# tests/ holds (:test)-annotated code; it is stripped from normal builds
+# and only compiled with --unit-test.
+base.sourcePath = source;tests

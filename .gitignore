@@ -1,0 +1,6 @@
+bin/
+*.prg
+*.iq
+*.prg.debug.xml
+developer_key.*
+.DS_Store

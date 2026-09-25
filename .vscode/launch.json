@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "monkeyc",
+            "request": "launch",
+            "name": "Run App",
+            "stopAtLaunch": false,
+            "device": "fr965"
+        },
+        {
+            "type": "omnibar",
+            "request": "launch",
+            "name": "Run Tests",
+            "runTests": true,
+            "device": "fr965"
+        }
+    ]
+}
