@@ -75,11 +75,13 @@ canvas.alpha_composite(small, (sx, sy))
 
 LX = 110
 icon = Image.open("art/courserun_icon_512.png").convert("RGBA").resize((86, 86), Image.LANCZOS)
-word = make_text("CourseRun", F("Poppins-Light.ttf", 96), WHITE, track=-4, vsquash=0.85)
-tag = make_text("Race the course, not the GPS.", F("Poppins-Medium.ttf", 38), GREEN)
-subs = [make_text("Distance and pace along the route.", F("Poppins-Regular.ttf", 30), LITE),
-        make_text("On-pace band from your workout", F("Poppins-Regular.ttf", 30), LITE),
-        make_text("or goal pace. Projected finish.", F("Poppins-Regular.ttf", 30), LITE)]
+# Poppins-Light reads stretched (Lift lesson): squash height to 0.82 and
+# tighten tracking; never horizontal-condense or uniform-shrink.
+word = make_text("CourseRun", F("Poppins-Light.ttf", 96), WHITE, track=-9, vsquash=0.82)
+tag = make_text("Race the course, not the GPS.", F("Poppins-Medium.ttf", 38), GREEN, track=-1.5)
+subs = [make_text("Distance and pace along the route.", F("Poppins-Regular.ttf", 30), LITE, track=-1),
+        make_text("On-pace band from your workout", F("Poppins-Regular.ttf", 30), LITE, track=-1),
+        make_text("or goal pace. Projected finish.", F("Poppins-Regular.ttf", 30), LITE, track=-1)]
 
 gap_icon, gap_word, gap_tag, line = 26, 18, 28, 12
 total = 86 + gap_icon + word.height + gap_word + tag.height + gap_tag + sum(s.height for s in subs) + line * (len(subs) - 1)
