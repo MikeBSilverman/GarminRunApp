@@ -6,7 +6,7 @@
                     entry="CourseRunApp"
                     launcherIcon="@Drawables.LauncherIcon"
                     minSdkVersion="3.2.0"
-                    version="0.1.0">
+                    version="0.2.0">
         <iq:products>
             <!-- Forerunner (256 KB data-field budget, except fr970 = 128 KB) -->
             <iq:product id="fr955" />
