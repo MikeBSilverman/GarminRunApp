@@ -23,6 +23,18 @@ A full-screen Garmin Connect IQ **data field** for racing and training on a cour
 | **Time, HR** | Activity timer and current heart rate. |
 | **To go** | Optional (setting): course distance remaining instead of distance run. Run + to go always equals the course length. |
 
+## What gets recorded
+
+The activity's official distance and pace stay the watch's own GPS values; no Connect IQ app can change them. CourseRun adds its own fields to the activity file, which Garmin Connect shows on the activity page:
+
+| Field | Where in Garmin Connect |
+|---|---|
+| Course Distance | Chart over the run, plus the activity summary |
+| Lap Course Distance | Laps table, next to each lap's GPS distance |
+| Course Pace | Activity summary, in decimal minutes: 8.97 min/mi = 8:58 |
+
+Units are fixed at the start of each activity from the watch's unit setting. Strava ignores these extra fields and shows the GPS numbers.
+
 ## Install (sideload)
 
 1. Build `bin/CourseRun.prg` (see CLAUDE.md), or use a built copy.
@@ -49,4 +61,5 @@ Units follow the watch: set **System > Units** to kilometers or miles and every 
 - Garmin documents the workout-step call as unavailable to data fields, but it works on current firmware and is used by other store fields. If a firmware ever blocks it, the band simply stays gray.
 - Some %-based targets report as zero (a known Garmin bug). They show as "no target".
 - On courses that loop over themselves, the watch can re-lock to the wrong lap after going off course. Course distance never goes backwards, which limits the damage.
+- Course Pace is recorded in decimal minutes because Garmin Connect can't display a M:SS value from an app field.
 - Only up to two Connect IQ fields can run per activity on most watches (four on FR970 / fenix 8).

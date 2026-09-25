@@ -10,4 +10,12 @@
     <string id="DistanceModeTitle">Big number shows</string>
     <string id="DistanceRun">Distance run</string>
     <string id="DistanceToGo">Distance to go (needs a course)</string>
+    <string id="FitCourseDistChart">Course Distance</string>
+    <string id="FitCourseDist">Course Distance</string>
+    <string id="FitLapCourseDist">Lap Course Distance</string>
+    <string id="FitCoursePace">Course Pace (decimal min)</string>
+    <string id="FitMi">mi</string>
+    <string id="FitKm">km</string>
+    <string id="FitMinMi">min/mi</string>
+    <string id="FitMinKm">min/km</string>
 </strings>

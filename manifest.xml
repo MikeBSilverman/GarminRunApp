@@ -37,6 +37,8 @@
         <iq:permissions>
             <!-- Heart-rate zones, to resolve zone-based workout HR targets -->
             <iq:uses-permission id="UserProfile" />
+            <!-- Course distance/pace written to the activity as developer fields -->
+            <iq:uses-permission id="FitContributor" />
         </iq:permissions>
         <iq:languages>
             <iq:language>eng</iq:language>

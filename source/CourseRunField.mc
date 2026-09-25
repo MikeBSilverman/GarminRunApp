@@ -21,6 +21,7 @@ class CourseRunField extends WatchUi.DataField {
     hidden var _tracker as CourseTracker;
     hidden var _buf as PaceBuffer;
     hidden var _target as WorkoutTarget;
+    hidden var _fit as FitRecorder;
 
     hidden var _timerMs as Number = 0;
     hidden var _hr as Number or Null = null;
@@ -36,6 +37,7 @@ class CourseRunField extends WatchUi.DataField {
         _tracker = new CourseTracker();
         _buf = new PaceBuffer(BUFFER_SLOTS, SAMPLE_MS);
         _target = new WorkoutTarget();
+        _fit = new FitRecorder(self, Fmt.distUnitM());
         loadSettings();
         _target.refresh();
     }
@@ -67,7 +69,12 @@ class CourseRunField extends WatchUi.DataField {
     function onTimerReset() as Void {
         _tracker.reset();
         _buf.reset();
+        _fit.reset();
         _timerMs = 0;
+    }
+
+    function onTimerLap() as Void {
+        _fit.onLap(_tracker.courseDist);
     }
 
     function onWorkoutStarted() as Void {
@@ -88,6 +95,7 @@ class CourseRunField extends WatchUi.DataField {
             var gps = info.elapsedDistance;
             _tracker.update(gps != null ? gps : 0.0, info.distanceToDestination);
             _buf.add(_timerMs, _tracker.courseDist);
+            _fit.update(_tracker.courseDist, _timerMs);
         }
 
         // Step callbacks cover transitions; this catches anything missed

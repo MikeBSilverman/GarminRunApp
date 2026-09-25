@@ -7,6 +7,7 @@ Full-screen run data field (Monkey C, `type="datafield"`). Primary device: **fr9
 - `source/CourseTracker.mc`: course distance from `Activity.Info.distanceToDestination`, GPS fallback, official-length rescale.
 - `source/PaceBuffer.mc`: ring buffer of (timer ms, course m), 600 slots at 2 s. Rolling-distance pace and smoothed speed by binary search + interpolation.
 - `source/WorkoutTarget.mc`: parses `Activity.getCurrentWorkoutStep()`. Speed targets are mm/s (low = slower); HR >100 = bpm+100, 1..5 with low==high = zone, else % max HR.
+- `source/FitRecorder.mc`: FIT developer fields (course distance record/lap/session, course pace session). Two id sets: 0-3 miles, 4-7 km; labels in `resources/fit/fit_contributions.xml` (sortOrder must be unique across all fields).
 - `source/Fmt.mc`, `source/Layout.mc`: formatting and percentage layout (ported/trimmed from `C:\Source\LiftApp\SRAGarmin`).
 - `tests/CourseRunTests.mc`: `(:test)` unit tests; stripped from normal builds.
 

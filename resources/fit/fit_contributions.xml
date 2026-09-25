@@ -1,0 +1,25 @@
+<resources>
+    <!-- Ids 0-3: miles set. Ids 4-7: km set. Only one set is created per
+         activity (see source/FitRecorder.mc). -->
+    <fitContributions>
+        <fitField id="0" displayInChart="true" sortOrder="0" precision="2"
+                  chartTitle="@Strings.FitCourseDistChart" dataLabel="@Strings.FitCourseDist"
+                  unitLabel="@Strings.FitMi" fillColor="#00A651" />
+        <fitField id="1" displayInActivityLaps="true" sortOrder="1" precision="2"
+                  dataLabel="@Strings.FitLapCourseDist" unitLabel="@Strings.FitMi" />
+        <fitField id="2" displayInActivitySummary="true" sortOrder="2" precision="2"
+                  dataLabel="@Strings.FitCourseDist" unitLabel="@Strings.FitMi" />
+        <fitField id="3" displayInActivitySummary="true" sortOrder="3" precision="2"
+                  dataLabel="@Strings.FitCoursePace" unitLabel="@Strings.FitMinMi" />
+
+        <fitField id="4" displayInChart="true" sortOrder="4" precision="2"
+                  chartTitle="@Strings.FitCourseDistChart" dataLabel="@Strings.FitCourseDist"
+                  unitLabel="@Strings.FitKm" fillColor="#00A651" />
+        <fitField id="5" displayInActivityLaps="true" sortOrder="5" precision="2"
+                  dataLabel="@Strings.FitLapCourseDist" unitLabel="@Strings.FitKm" />
+        <fitField id="6" displayInActivitySummary="true" sortOrder="6" precision="2"
+                  dataLabel="@Strings.FitCourseDist" unitLabel="@Strings.FitKm" />
+        <fitField id="7" displayInActivitySummary="true" sortOrder="7" precision="2"
+                  dataLabel="@Strings.FitCoursePace" unitLabel="@Strings.FitMinKm" />
+    </fitContributions>
+</resources>
