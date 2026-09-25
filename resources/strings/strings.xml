@@ -7,4 +7,7 @@
     <string id="UnitAuto">Watch units</string>
     <string id="UnitMile">1 mile</string>
     <string id="UnitKm">1 km</string>
+    <string id="DistanceModeTitle">Big number shows</string>
+    <string id="DistanceRun">Distance run</string>
+    <string id="DistanceToGo">Distance to go (needs a course)</string>
 </strings>

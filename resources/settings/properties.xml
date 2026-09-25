@@ -2,4 +2,5 @@
     <property id="courseLength" type="float">0.0</property>
     <property id="smoothSeconds" type="number">30</property>
     <property id="rollingUnit" type="number">0</property>
+    <property id="distanceMode" type="number">0</property>
 </properties>

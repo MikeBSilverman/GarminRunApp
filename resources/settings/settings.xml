@@ -12,4 +12,10 @@
             <listEntry value="2">@Strings.UnitKm</listEntry>
         </settingConfig>
     </setting>
+    <setting propertyKey="@Properties.distanceMode" title="@Strings.DistanceModeTitle">
+        <settingConfig type="list">
+            <listEntry value="0">@Strings.DistanceRun</listEntry>
+            <listEntry value="1">@Strings.DistanceToGo</listEntry>
+        </settingConfig>
+    </setting>
 </settings>

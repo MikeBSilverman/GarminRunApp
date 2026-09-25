@@ -21,6 +21,7 @@ A full-screen Garmin Connect IQ **data field** for racing and training on a cour
 | **Last mi** | Time for the most recent mile (or km) of course distance. Dimmed until the first full mile, showing average pace instead. |
 | **Status band** | Green = on pace, red = too fast, blue = too slow, gray = no target. Compares ~30 s smoothed course pace against the current workout step's target range. Heart-rate targets show `HR ON / HIGH / LOW`. |
 | **Time, HR** | Activity timer and current heart rate. |
+| **To go** | Optional (setting): course distance remaining instead of distance run. Run + to go always equals the course length. |
 
 ## Install (sideload)
 
@@ -31,6 +32,9 @@ A full-screen Garmin Connect IQ **data field** for racing and training on a cour
    - **Official course length**: e.g. `13.11` for a half. Rescales the course so a GPX that measures a little long or short still reads the official distance. `0` = use the course as loaded.
    - **Pace indicator smoothing**: seconds of pace averaged for the status band (default 30).
    - **Rolling pace window**: watch units, 1 mile, or 1 km.
+   - **Big number shows**: distance run (default) or distance to go. Distance to go needs a course; without one it shows distance run.
+
+Units follow the watch: set **System > Units** to kilometers or miles and every distance and pace switches. Colors follow the activity's background setting, so dark and light backgrounds both work.
 
 ## Race-day / workout workflow
 

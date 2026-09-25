@@ -176,6 +176,24 @@ module CourseRunTests {
         return true;
     }
 
+    // Distance to go = course length - course distance; null without a course.
+    (:test)
+    function courseTrackerRemaining(logger as Logger) as Boolean {
+        var c = new CourseTracker();
+        c.update(0.0, null);
+        Test.assert(c.remainingMeters() == null);
+        c.update(10.0, 10000.0);
+        c.update(3100.0, 7000.0);
+        Test.assert(near(c.remainingMeters(), 7000.0, 0.5));
+        // Off course: to-go shrinks with GPS progress.
+        c.update(3200.0, null);
+        Test.assert(near(c.remainingMeters(), 6900.0, 0.5));
+        // Past the finish: clamps at zero.
+        c.update(20000.0, null);
+        Test.assert(near(c.remainingMeters(), 0.0, 0.01));
+        return true;
+    }
+
     // ---- WorkoutTarget -----------------------------------------------------
 
     // Speed target in mm/s: 2.9-3.1 m/s. Low is the slow bound.

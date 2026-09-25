@@ -54,6 +54,18 @@ class CourseTracker {
         return _official > 0.0 ? _official : _length;
     }
 
+    // Distance left to the finish in metres, or null if no course has been
+    // seen. Uses the same course distance the screen shows, so run + to-go
+    // always equals the course length.
+    function remainingMeters() as Float or Null {
+        var len = lengthMeters();
+        if (len == null) {
+            return null;
+        }
+        var r = len - courseDist;
+        return r > 0.0 ? r : 0.0;
+    }
+
     // gps: Activity.Info.elapsedDistance (m). dtd: distanceToDestination (m) or null.
     function update(gps as Float, dtd as Float or Null) as Void {
         var delta = 0.0;

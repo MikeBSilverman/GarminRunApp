@@ -29,6 +29,7 @@ class CourseRunField extends WatchUi.DataField {
     hidden var _smoothMs as Number = 30000;
     hidden var _rollingUnit as Number = 0;  // 0 watch units, 1 mile, 2 km
     hidden var _officialLen as Float = 0.0; // in display distance units
+    hidden var _showToGo as Boolean = false; // hero shows distance to go
 
     function initialize() {
         DataField.initialize();
@@ -46,6 +47,7 @@ class CourseRunField extends WatchUi.DataField {
             _smoothMs = 5000;
         }
         _rollingUnit = readFloat("rollingUnit", 0.0).toNumber();
+        _showToGo = readFloat("distanceMode", 0.0).toNumber() == 1;
         _tracker.setOfficialLength(_officialLen * Fmt.distUnitM());
     }
 
@@ -106,6 +108,18 @@ class CourseRunField extends WatchUi.DataField {
             return Fmt.M_PER_KM;
         }
         return Fmt.paceUnitM();
+    }
+
+    // Hero distance in metres and whether it is distance-to-go. To-go needs a
+    // course; without one it falls back to distance run.
+    hidden function heroMeters() as [Float, Boolean] {
+        if (_showToGo) {
+            var r = _tracker.remainingMeters();
+            if (r != null) {
+                return [r, true];
+            }
+        }
+        return [_tracker.courseDist, false];
     }
 
     hidden function statusColor(status as Number) as Number {
@@ -188,12 +202,15 @@ class CourseRunField extends WatchUi.DataField {
             dc.drawText(cx, Layout.pct(h, 16), Layout.bandFont(h), statusText(status), vc);
         }
 
-        // Hero: course distance.
+        // Hero: course distance run, or distance to go.
+        var hero = heroMeters();
         dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx, Layout.pct(h, 38), Layout.heroFont(h), Fmt.dist(cd, distUnit), vc);
+        dc.drawText(cx, Layout.pct(h, 38), Layout.heroFont(h), Fmt.dist(hero[0], distUnit), vc);
 
         var label = "DISTANCE";
-        if (_tracker.mode != CourseTracker.MODE_GPS) {
+        if (hero[1]) {
+            label = "TO GO";
+        } else if (_tracker.mode != CourseTracker.MODE_GPS) {
             label = "COURSE";
         }
         label = label + (distUnit == Fmt.M_PER_MI ? " MI" : " KM");
@@ -251,7 +268,7 @@ class CourseRunField extends WatchUi.DataField {
         dc.setColor(band, band);
         dc.fillRectangle(0, 0, w, h);
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        var txt = Fmt.dist(cd, distUnit);
+        var txt = Fmt.dist(heroMeters()[0], distUnit);
         if (_tracker.mode == CourseTracker.MODE_OFF) {
             txt = txt + "*";
         }
