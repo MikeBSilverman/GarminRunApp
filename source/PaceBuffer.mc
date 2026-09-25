@@ -123,6 +123,9 @@ class PaceBuffer {
     // current point. Null until a full window has been covered, or if the
     // window reaches further back than the buffer holds.
     function rollingSecPerMeter(nowT as Number, nowD as Float, windowM as Float) as Float or Null {
+        if (windowM <= 0.0) {
+            return null;
+        }
         var startD = nowD - windowM;
         if (startD < 0.0) {
             return null;

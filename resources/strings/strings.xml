@@ -1,15 +1,25 @@
 <strings>
     <string id="AppName">CourseRun</string>
-    <string id="CourseLengthTitle">Official course length</string>
-    <string id="CourseLengthPrompt">In miles or km (your watch units). 0 = use the course as loaded. Rescales course distance so a slightly long or short GPX still reads the official distance.</string>
-    <string id="SmoothTitle">Pace indicator smoothing (seconds)</string>
-    <string id="RollingUnitTitle">Rolling pace window</string>
-    <string id="UnitAuto">Watch units</string>
-    <string id="UnitMile">1 mile</string>
-    <string id="UnitKm">1 km</string>
+    <string id="GoalPaceTitle">Goal pace (races without a workout)</string>
+    <string id="GoalPacePrompt">Minutes:seconds per mile or km, in your watch's pace units, e.g. 9:00. Drives the ON PACE band, AHEAD/BEHIND and alerts when no workout target is active. Leave blank for none.</string>
+    <string id="GoalTolTitle">Goal pace leeway (seconds)</string>
+    <string id="GoalTolPrompt">How far from the goal pace still counts as ON PACE. Default 10 seconds per mile/km.</string>
+    <string id="AlertsTitle">Vibrate when you drift off pace</string>
+    <string id="AlertsOff">Off</string>
+    <string id="AlertsGoal">Goal pace only (workouts alert on their own)</string>
+    <string id="AlertsAlways">Always</string>
+    <string id="CourseLengthTitle">Race distance (leave 0 for training)</string>
+    <string id="CourseLengthPrompt">Official race distance in your watch's distance units, e.g. 13.11 for a half marathon in miles or 21.1 in km. The finish then reads exactly this even if the course file measures a little long or short. Only applies when the loaded course is within 5% of it. Set back to 0 after the race.</string>
     <string id="DistanceModeTitle">Big number shows</string>
     <string id="DistanceRun">Distance run</string>
     <string id="DistanceToGo">Distance to go (needs a course)</string>
+    <string id="RollingUnitTitle">Right-hand pace</string>
+    <string id="UnitAuto">Last mile or km (watch units)</string>
+    <string id="UnitMile">Last mile</string>
+    <string id="UnitKm">Last km</string>
+    <string id="UnitLap">Lap pace (course distance)</string>
+    <string id="SmoothTitle">ON PACE band: seconds of pace to average</string>
+    <string id="SmoothPrompt">Default 30. Higher is steadier but slower to react.</string>
     <string id="FitCourseDistChart">Course Distance</string>
     <string id="FitCourseDist">Course Distance</string>
     <string id="FitLapCourseDist">Lap Course Distance</string>

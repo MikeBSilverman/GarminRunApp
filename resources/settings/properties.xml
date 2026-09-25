@@ -3,4 +3,7 @@
     <property id="smoothSeconds" type="number">30</property>
     <property id="rollingUnit" type="number">0</property>
     <property id="distanceMode" type="number">0</property>
+    <property id="goalPace" type="string"></property>
+    <property id="goalTolerance" type="number">10</property>
+    <property id="alerts" type="number">1</property>
 </properties>

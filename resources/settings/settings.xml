@@ -1,21 +1,35 @@
 <settings>
+    <setting propertyKey="@Properties.goalPace" title="@Strings.GoalPaceTitle" prompt="@Strings.GoalPacePrompt">
+        <settingConfig type="alphaNumeric" maxLength="6" />
+    </setting>
+    <setting propertyKey="@Properties.goalTolerance" title="@Strings.GoalTolTitle" prompt="@Strings.GoalTolPrompt">
+        <settingConfig type="numeric" min="0" max="60" />
+    </setting>
+    <setting propertyKey="@Properties.alerts" title="@Strings.AlertsTitle">
+        <settingConfig type="list">
+            <listEntry value="0">@Strings.AlertsOff</listEntry>
+            <listEntry value="1">@Strings.AlertsGoal</listEntry>
+            <listEntry value="2">@Strings.AlertsAlways</listEntry>
+        </settingConfig>
+    </setting>
     <setting propertyKey="@Properties.courseLength" title="@Strings.CourseLengthTitle" prompt="@Strings.CourseLengthPrompt">
         <settingConfig type="numeric" min="0" max="200" />
-    </setting>
-    <setting propertyKey="@Properties.smoothSeconds" title="@Strings.SmoothTitle">
-        <settingConfig type="numeric" min="5" max="120" />
-    </setting>
-    <setting propertyKey="@Properties.rollingUnit" title="@Strings.RollingUnitTitle">
-        <settingConfig type="list">
-            <listEntry value="0">@Strings.UnitAuto</listEntry>
-            <listEntry value="1">@Strings.UnitMile</listEntry>
-            <listEntry value="2">@Strings.UnitKm</listEntry>
-        </settingConfig>
     </setting>
     <setting propertyKey="@Properties.distanceMode" title="@Strings.DistanceModeTitle">
         <settingConfig type="list">
             <listEntry value="0">@Strings.DistanceRun</listEntry>
             <listEntry value="1">@Strings.DistanceToGo</listEntry>
         </settingConfig>
+    </setting>
+    <setting propertyKey="@Properties.rollingUnit" title="@Strings.RollingUnitTitle">
+        <settingConfig type="list">
+            <listEntry value="0">@Strings.UnitAuto</listEntry>
+            <listEntry value="1">@Strings.UnitMile</listEntry>
+            <listEntry value="2">@Strings.UnitKm</listEntry>
+            <listEntry value="3">@Strings.UnitLap</listEntry>
+        </settingConfig>
+    </setting>
+    <setting propertyKey="@Properties.smoothSeconds" title="@Strings.SmoothTitle" prompt="@Strings.SmoothPrompt">
+        <settingConfig type="numeric" min="5" max="120" />
     </setting>
 </settings>
