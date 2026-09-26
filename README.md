@@ -98,7 +98,7 @@ Units are fixed from the watch's setting when the Run app opens. Strava ignores 
 
 **From the Connect IQ store** (when published): install like any data field.
 
-**Sideload**: copy `CourseRun.prg` to the watch's `GARMIN\APPS\` folder over USB and unplug. Settings are not reachable from the phone app for a sideloaded build; the defaults are goal pace off, race distance 0, alerts in goal mode only. To change them, edit the defaults in `resources/settings/properties.xml` before building.
+**Sideload**: copy `CourseRun-<version>.prg` to the watch's `GARMIN\APPS\` folder over USB and unplug. Settings are not reachable from the phone app for a sideloaded build; the defaults are goal pace off, race distance 0, alerts in goal mode only. To change them, edit the defaults in `resources/settings/properties.xml` before building.
 
 ## Privacy and safety
 
@@ -109,6 +109,7 @@ CourseRun asks for two permissions: read your heart-rate zones, and write two ex
 Monkey C, `type="datafield"`, Connect IQ SDK 9.2. Targets Forerunner 265/265s/570/955/965/970, fēnix 7, fēnix 8, epix 2 Pro. Peak memory about 29 KB against the 128 KB limit on the smallest of those.
 
 ```
+scripts/build.sh         # bin/CourseRun-<version>.prg and .iq, named from manifest.xml
 scripts/test.sh          # static checks + 27 unit tests in the simulator
 python scripts/check.py  # static checks only (what CI runs)
 ```
