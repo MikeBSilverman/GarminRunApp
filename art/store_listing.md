@@ -50,5 +50,6 @@ GitHub issues: https://github.com/MikeBSilverman/GarminRunApp/issues
 
 ## Assets
 - Hero banner 1440x720: art/CourseRun_Hero_Banner_1440x720.png
+- Cover image 500x500: art/CourseRun_Cover_500x500.png (89 KB, under the 300 KB limit)
 - Store icon 128x128: art/CourseRun_StoreIcon_128.png
 - Launcher icon 512: art/courserun_icon_512.png
