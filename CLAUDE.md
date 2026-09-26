@@ -15,8 +15,12 @@ Full-screen run data field (Monkey C, `type="datafield"`). Primary device: **fr9
 ## Build (Bash tool; SDK 9.2.0)
 ```
 SDK="/c/Users/mikeb/AppData/Roaming/Garmin/ConnectIQ/Sdks/connectiq-sdk-win-9.2.0-2026-06-09-92a1605b2/bin"
-"$SDK/monkeyc.bat" -d fr965 -f monkey.jungle -o bin/CourseRun.prg -y developer_key.der -l 2 -w      # sideload
-"$SDK/monkeyc.bat" -e -o bin/CourseRun.iq -f monkey.jungle -y developer_key.der -l 2 -w              # all devices / store
+scripts/build.sh            # -> bin/CourseRun-<version>.prg (fr965 sideload) and bin/CourseRun-<version>.iq (store)
+```
+Output files carry the manifest version (Mike's rule: always name builds by version). Bump `version=` in manifest.xml first; patch for fixes (0.2.1), minor for features. Under the hood:
+```
+"$SDK/monkeyc.bat" -d fr965 -f monkey.jungle -o bin/CourseRun-0.2.0.prg -y developer_key.der -l 2 -w   # sideload
+"$SDK/monkeyc.bat" -e -o bin/CourseRun-0.2.0.iq -f monkey.jungle -y developer_key.der -l 2 -w           # all devices / store
 ```
 `developer_key.der` is the same key as Lift, copied locally and git-ignored.
 
