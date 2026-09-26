@@ -4,7 +4,7 @@
 # Needs the simulator running (scripts/test.sh starts it) and a developer_key.der.
 R="$(cd "$(dirname "$0")/.." && pwd)"
 CFG="$HOME/AppData/Roaming/Garmin/ConnectIQ/current-sdk.cfg"
-SDK="$(cygpath -u "$(tr -d '' < "$CFG")")/bin"
+SDK="$(cygpath -u "$(tr -d '\r' < "$CFG")")/bin"
 SP="$R/bin/preview"
 python "$R/tools/mkpreview.py" $2 $3 || exit 1
 cd "$SP"
