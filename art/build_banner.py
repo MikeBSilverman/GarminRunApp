@@ -50,7 +50,7 @@ def fit_h(im, h):
     return im.resize((int(im.width * r), h), Image.LANCZOS)
 
 
-def make_text(text, font, fill, track=0, vsquash=1.0):
+def make_text(text, font, fill, track=0, vsquash=1.0, condense=1.0):
     sc = Image.new("RGBA", (2600, 400), (0, 0, 0, 0))
     sd = ImageDraw.Draw(sc)
     cx = 80
@@ -58,8 +58,8 @@ def make_text(text, font, fill, track=0, vsquash=1.0):
         sd.text((cx, 80), ch, font=font, fill=fill)
         cx += font.getlength(ch) + track
     sc = sc.crop(sc.getbbox())
-    if vsquash != 1.0:
-        sc = sc.resize((sc.width, max(1, int(sc.height * vsquash))), Image.LANCZOS)
+    if vsquash != 1.0 or condense != 1.0:
+        sc = sc.resize((max(1, int(sc.width * condense)), max(1, int(sc.height * vsquash))), Image.LANCZOS)
     return sc
 
 
@@ -75,9 +75,10 @@ canvas.alpha_composite(small, (sx, sy))
 
 LX = 110
 icon = Image.open("art/courserun_icon_512.png").convert("RGBA").resize((86, 86), Image.LANCZOS)
-# Poppins-Light reads stretched (Lift lesson): squash height to 0.82 and
-# tighten tracking; never horizontal-condense or uniform-shrink.
-word = make_text("CourseRun", F("Poppins-Light.ttf", 96), WHITE, track=-9, vsquash=0.82)
+# Poppins-Light reads airy at this size. Mike picked (from six variants):
+# height 0.86, tracking -8, plus a mild 8% horizontal condense. A nine-letter
+# word tolerates the condense that Lift's four-letter wordmark did not.
+word = make_text("CourseRun", F("Poppins-Light.ttf", 96), WHITE, track=-8, vsquash=0.86, condense=0.92)
 tag = make_text("Race the course, not the GPS.", F("Poppins-Medium.ttf", 38), GREEN, track=-1.5)
 subs = [make_text("Distance and pace along the route.", F("Poppins-Regular.ttf", 30), LITE, track=-1),
         make_text("On-pace band from your workout", F("Poppins-Regular.ttf", 30), LITE, track=-1),
