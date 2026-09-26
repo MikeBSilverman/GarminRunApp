@@ -53,3 +53,4 @@ GitHub issues: https://github.com/MikeBSilverman/GarminRunApp/issues
 - Cover image 500x500: art/CourseRun_Cover_500x500.png (89 KB, under the 300 KB limit)
 - Store icon 128x128: art/CourseRun_StoreIcon_128.png
 - Launcher icon 512: art/courserun_icon_512.png
+- Screen images 454x454 (raw captures, 47-74 KB each, under the 150 KB limit): art/screens/1_goal_pace.png .. 6_off_course.png. Upload in that order: goal pace, workout target, before start, mile split, distance to go with HR target, off course.

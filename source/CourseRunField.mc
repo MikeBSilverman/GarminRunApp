@@ -373,7 +373,7 @@ class CourseRunField extends WatchUi.DataField {
 
         // Hero.
         dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx, Layout.pct(h, 40), Layout.heroFont(h), Fmt.dist(hero[0], _distUnit), vc);
+        dc.drawText(cx, Layout.pct(h, 39), Layout.heroFont(h), Fmt.dist(hero[0], _distUnit), vc);
 
         // Label line under the hero: split flash, or mode + projected finish.
         var unit = _distUnit == Fmt.M_PER_MI ? " MI" : " KM";
@@ -399,7 +399,7 @@ class CourseRunField extends WatchUi.DataField {
             }
         }
         dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx, Layout.pct(h, 51), Layout.labelFont(), label, vc);
+        dc.drawText(cx, Layout.pct(h, 53), Layout.labelFont(), label, vc);
 
         // Row 2: course average pace | rolling / lap pace.
         var avg = avgSecPerMeter();
@@ -420,34 +420,34 @@ class CourseRunField extends WatchUi.DataField {
         }
 
         dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(lx, Layout.pct(h, 60), Layout.valueFont(h),
+        dc.drawText(lx, Layout.pct(h, 61), Layout.valueFont(h),
                     Fmt.pace(avg != null ? avg * _paceUnit : null), vc);
         if (rightSpm != null) {
-            dc.drawText(rx, Layout.pct(h, 60), Layout.valueFont(h), Fmt.pace(rightSpm * _paceUnit), vc);
+            dc.drawText(rx, Layout.pct(h, 61), Layout.valueFont(h), Fmt.pace(rightSpm * _paceUnit), vc);
         } else {
             // Before a full window is covered, show the average so far, dimmed.
             dc.setColor(dim, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(rx, Layout.pct(h, 60), Layout.valueFont(h),
+            dc.drawText(rx, Layout.pct(h, 61), Layout.valueFont(h),
                         Fmt.pace(avg != null ? avg * _paceUnit : null), vc);
             if (_rollingUnit != 3) {
                 rightLabel = "AVG (1ST)";
             }
         }
         dc.setColor(dim, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(lx, Layout.pct(h, 68), Layout.labelFont(),
+        dc.drawText(lx, Layout.pct(h, 69), Layout.labelFont(),
                     _tracker.mode == CourseTracker.MODE_COURSE ? "COURSE AVG" : "AVG PACE", vc);
-        dc.drawText(rx, Layout.pct(h, 68), Layout.labelFont(), rightLabel, vc);
-        dc.drawLine(cx, Layout.pct(h, 55), cx, Layout.pct(h, 89));
+        dc.drawText(rx, Layout.pct(h, 69), Layout.labelFont(), rightLabel, vc);
+        dc.drawLine(cx, Layout.pct(h, 57), cx, Layout.pct(h, 90));
 
         // Row 3: timer | heart rate.
         var tx = Layout.pct(w, 34);
         var hx = Layout.pct(w, 66);
         dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(tx, Layout.pct(h, 78), Layout.rowFont(h), Fmt.timer(_timerMs), vc);
-        dc.drawText(hx, Layout.pct(h, 78), Layout.rowFont(h), _hr != null ? _hr.toString() : "--", vc);
+        dc.drawText(tx, Layout.pct(h, 79), Layout.rowFont(h), Fmt.timer(_timerMs), vc);
+        dc.drawText(hx, Layout.pct(h, 79), Layout.rowFont(h), _hr != null ? _hr.toString() : "--", vc);
         dc.setColor(dim, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(tx, Layout.pct(h, 86), Layout.labelFont(), "TIME", vc);
-        dc.drawText(hx, Layout.pct(h, 86), Layout.labelFont(), "HR", vc);
+        dc.drawText(tx, Layout.pct(h, 87), Layout.labelFont(), "TIME", vc);
+        dc.drawText(hx, Layout.pct(h, 87), Layout.labelFont(), "HR", vc);
     }
 
     hidden function drawBand(dc as Graphics.Dc, w as Number, h as Number, dim as Number,

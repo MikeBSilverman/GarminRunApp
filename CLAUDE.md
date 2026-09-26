@@ -30,7 +30,7 @@ In Git Bash, monkeydo needs `/t` (Windows style) and `MSYS2_ARG_CONV_EXCL='*'` s
 
 ## Field behaviour
 - `compute()` runs before START too (timerTime 0): tracker.preview only. While running, updates happen only when timerTime changed, so pause/stop freezes distance, buffer and FIT writes.
-- Band lines at 16%/23% of height, band fill 28%; anything higher clips on the round bezel. Keep band strings under ~16 chars at FONT_SMALL.
+- Band lines at 16%/23% of height, band fill 28%; anything higher clips on the round bezel. Hero at 39%, its label at 53% (Mike wanted clear separation), row 2 at 61%/69%, row 3 at 79%/87%. Keep band strings under ~16 chars at FONT_SMALL.
 - Split flash overrides the hero label for 6 s at each course mile/km.
 
 ## Constraints
