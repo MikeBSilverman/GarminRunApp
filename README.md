@@ -22,11 +22,13 @@ Race courses are measured along the shortest legal line and nobody runs it. GPS 
 | **COURSE READY 13.14 MI** (before Start) | A course is loaded and its length is known. Green. |
 | **NO COURSE** (before Start) | No course loaded. Hold UP > Navigation > Courses. Orange. Everything still works, using GPS distance. |
 | **CHECK LENGTH** (before Start) | The loaded course is more than 5% off the race distance you set. Wrong course, or the setting was left on after a race. Orange. |
-| **ON PACE / SLOW DOWN / SPEED UP** | Green, red, blue. Compares your last 30 s of pace with the current workout step's target, or with your goal pace when no workout is loaded. |
+| **ON PACE / SLOW DOWN / SPEED UP** | Green, red, blue. Compares your pace over the last 30 s (a setting) with the current workout step's target, or with your goal pace when no workout target is active. The pace comes from GPS speed scaled to the course, which is steadier than course distance second to second. |
+| **TARGET 7:51-8:33** (grey) | The first 30 s of the run and of each workout step: no verdict yet while you settle into the new pace. |
 | **AHEAD 0:09 / BEHIND 0:12** | Goal-pace mode: seconds ahead of or behind your goal at this point in the course. |
 | **RUN 8:44-9:09** | Workout mode: the step name and its pace range, fastest first. |
 | **HR OK / HR HIGH / HR LOW** | The step has a heart-rate target instead of pace. |
-| **REST / RECOVERY / WARM UP / COOL DOWN** | Steps with no target. Not an error. |
+| **REST / RECOVERY** | Rest steps: no verdict and no alerts, whatever their target. |
+| **WARM UP / COOL DOWN** | Step names, shown with the step's target if it has one. |
 | **NO GOAL SET** | No workout target and no goal pace in settings. The band is simply off. |
 | **COURSE MI** | The big number is distance along the course. |
 | **GPS MI** | No course. The big number is plain GPS distance. |
@@ -53,6 +55,8 @@ Colours follow the activity's background setting (light or dark). Units follow t
 3. If you're following a workout: hold **UP** > **Training** > **Workouts** > pick it > **Do Workout**.
 4. Swipe to CourseRun. It should say **COURSE READY** with the right distance.
 5. Gun: press **START**. From then on the big number is course distance.
+
+**Pausing** (or auto-pause) freezes course distance and pace history with the timer. **Stop > Resume Later** works too: CourseRun saves its state and carries on from it when you resume.
 
 Some firmware versions drop the course when a workout is added afterwards. If **COURSE READY** disappears after step 3, redo step 2. **Rehearse this on a training run the week before the race.**
 
@@ -91,6 +95,7 @@ The activity's official distance and pace stay the watch's own GPS values; no da
 | Course Distance | Chart over the run, and the activity summary |
 | Lap Course Distance | Laps table, next to each lap's GPS distance |
 | Course Pace | Summary, in decimal minutes (8.97 min/mi = 8:58) |
+| Pace Band | Not displayed: the band's state each second (0 none, 1 on pace, 2 slow down, 3 speed up), so a run can be checked against `tools/replay.py` |
 
 Units are fixed from the watch's setting when the Run app opens. Strava ignores these extra fields.
 
@@ -102,16 +107,17 @@ Units are fixed from the watch's setting when the Run app opens. Strava ignores 
 
 ## Privacy and safety
 
-CourseRun asks for two permissions: read your heart-rate zones, and write two extra fields into the activity you already record. It has no network access and never reads raw GPS. See [SECURITY.md](SECURITY.md).
+CourseRun asks for two permissions: read your heart-rate zones, and write its own fields (above) into the activity you already record. It has no network access and never reads raw GPS. To survive Resume Later it keeps one small record on the watch (timer, lap marks, course length and distance; no location), deleted when the activity is saved or discarded. See [SECURITY.md](SECURITY.md).
 
 ## For developers
 
-Monkey C, `type="datafield"`, Connect IQ SDK 9.2. Targets Forerunner 265/265s/570/955/965/970, fēnix 7, fēnix 8, epix 2 Pro. Peak memory about 29 KB against the 128 KB limit on the smallest of those.
+Monkey C, `type="datafield"`, Connect IQ SDK 9.2. Targets Forerunner 265/265s/570/955/965/970, fēnix 7, fēnix 8, epix 2 Pro. All buffers are allocated once, well inside the 128 KB limit on the smallest of those.
 
 ```
 scripts/build.sh         # bin/CourseRun-<version>.prg and .iq, named from manifest.xml
-scripts/test.sh          # static checks + 27 unit tests in the simulator
+scripts/test.sh          # static checks + unit tests in the simulator
 python scripts/check.py  # static checks only (what CI runs)
+python tools/replay.py run.fit [--course COURSE.fit]   # replay a recorded run through the logic
 ```
 
 Build commands, layout notes and the module map are in [CLAUDE.md](CLAUDE.md). Bug reports and pull requests are welcome.

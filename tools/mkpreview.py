@@ -4,7 +4,7 @@ Usage: python tools/mkpreview.py <scenario> [dark]
 Scenarios: prestart | goal | workout | rest | split | mismatch | offcourse | togo | compact
 Output: bin/preview/ (a full project copy with CourseRunField.mc patched)."""
 import sys, shutil, os
-# scenarios: prestart | goal | workout | rest | split | mismatch | compact
+
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SP = os.path.join(R, "bin", "preview")
 os.makedirs(SP, exist_ok=True)
@@ -25,7 +25,6 @@ common = '''
         _tracker.preview(21097.5);
         _tracker.update(0.0, 21097.5); _tracker.update(7900.0, 21097.5 - 7837.0);
         _timerMs = 2621000; _lastTimerMs = 2621000; _hr = 162; _running = true;
-        _speed = 3.05;
 '''
 seeds = {
     "prestart": '''

@@ -1,5 +1,4 @@
 import Toybox.Lang;
-import Toybox.System;
 
 // Display formatting. Pace/time helpers adapted from Lift's Utils.mc.
 module Fmt {
@@ -111,13 +110,4 @@ module Fmt {
         return out != null ? out : "";
     }
 
-    // Metres per display distance unit, from the watch's settings.
-    function distUnitM() as Float {
-        return System.getDeviceSettings().distanceUnits == System.UNIT_METRIC ? M_PER_KM : M_PER_MI;
-    }
-
-    // Metres per display pace unit, from the watch's settings.
-    function paceUnitM() as Float {
-        return System.getDeviceSettings().paceUnits == System.UNIT_METRIC ? M_PER_KM : M_PER_MI;
-    }
 }

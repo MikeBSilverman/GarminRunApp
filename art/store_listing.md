@@ -33,7 +33,7 @@ CourseRun is a full-screen data field that fixes that. Load the race course, and
 2. Before a race: hold UP > Navigation > Courses > the race > Do Course. Add your workout as usual.
 3. Optional settings in the Connect IQ app: goal pace, race distance (e.g. 13.11), alerts, right-hand pace, distance to go.
 
-Units follow your watch. Light and dark backgrounds supported. No network access; it only reads your heart-rate zones and writes two extra fields into your own activity. Open source (MIT): https://github.com/MikeBSilverman/GarminRunApp
+Units follow your watch. Light and dark backgrounds supported. No network access; it only reads your heart-rate zones and writes its own fields into your own activity. Open source (MIT): https://github.com/MikeBSilverman/GarminRunApp
 
 ## What's new (0.2.0)
 First public release.

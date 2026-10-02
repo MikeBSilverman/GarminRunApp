@@ -38,7 +38,7 @@ class WorkoutTarget {
     }
 
     hidden const OPEN_HIGH = 99.0;   // m/s; "no fast limit"
-    hidden const MMPS_MIN = 100;     // speed values at or above this are mm/s
+    hidden const MMPS_MIN = 100.0;   // speed values at or above this are mm/s
     hidden const HYST = 0.015;       // 1.5% dead band before status changes
 
     var kind as Number = KIND_NONE;
@@ -87,7 +87,11 @@ class WorkoutTarget {
     // Re-reads the workout step. Returns true when the target changed (new
     // step, rest/active switch), so the caller can restart its settle period.
     function refresh() as Boolean {
-        var was = [kind, low, high, isRest, stepLabel];
+        var wasKind = kind;
+        var wasLow = low;
+        var wasHigh = high;
+        var wasRest = isRest;
+        var wasLabel = stepLabel;
         kind = KIND_NONE;
         source = SOURCE_NONE;
         hasWorkout = false;
@@ -101,12 +105,12 @@ class WorkoutTarget {
             }
         }
         applyGoal();
-        return was[0] != kind || was[1] != low || was[2] != high
-            || was[3] != isRest || !stepLabel.equals(was[4]);
+        return wasKind != kind || wasLow != low || wasHigh != high
+            || wasRest != isRest || !stepLabel.equals(wasLabel);
     }
 
     hidden function readWorkout() as Void {
-        var info = Activity.getCurrentWorkoutStep();
+        var info = Activity.getCurrentWorkoutStep();   // guarded: only called from refresh()'s try
         if (info == null) {
             return;
         }
@@ -158,12 +162,15 @@ class WorkoutTarget {
         if (targetType == null || lo == null || hi == null) {
             return;
         }
+        // Floats from here: speed values may arrive as m/s Floats.
+        var fl = lo.toFloat();
+        var fh = hi.toFloat();
         if (targetType == Activity.WORKOUT_STEP_TARGET_SPEED) {
-            if (lo <= 0 && hi <= 0) {
+            if (fl <= 0.0 && fh <= 0.0) {
                 return;
             }
-            var a = speedValue(lo);
-            var b = speedValue(hi);
+            var a = speedValue(fl);
+            var b = speedValue(fh);
             if (a > 0.0 && b > 0.0 && a > b) {
                 var tmp = a;
                 a = b;
@@ -174,16 +181,17 @@ class WorkoutTarget {
             high = b > 0.0 ? b : OPEN_HIGH;
             kind = KIND_PACE;
         } else if (targetType == Activity.WORKOUT_STEP_TARGET_HEART_RATE) {
-            if (lo > 100 || hi > 100) {
-                low = (lo > 100 ? lo - 100 : lo).toFloat();
-                high = (hi > 100 ? hi - 100 : hi).toFloat();
-            } else if (lo == hi && lo >= 1 && lo <= 5 && zones != null && zones.size() >= 6) {
-                low = zones[lo.toNumber() - 1].toFloat();
-                high = zones[lo.toNumber()].toFloat();
-            } else if (lo > 0 && hi > 0 && zones != null && zones.size() > 0) {
+            if (fl > 100.0 || fh > 100.0) {
+                low = fl > 100.0 ? fl - 100.0 : fl;
+                high = fh > 100.0 ? fh - 100.0 : fh;
+            } else if (fl == fh && fl >= 1.0 && fl <= 5.0 && zones != null && zones.size() >= 6) {
+                var z = fl.toNumber();
+                low = zones[z - 1].toFloat();
+                high = zones[z].toFloat();
+            } else if (fl > 0.0 && fh > 0.0 && zones != null && zones.size() > 0) {
                 var maxHr = zones[zones.size() - 1].toFloat();
-                low = maxHr * lo / 100.0;
-                high = maxHr * hi / 100.0;
+                low = maxHr * fl / 100.0;
+                high = maxHr * fh / 100.0;
             } else {
                 return;
             }
@@ -197,8 +205,8 @@ class WorkoutTarget {
     }
 
     // m/s from a speed target value in mm/s or m/s (see the class comment).
-    hidden function speedValue(v as Numeric) as Float {
-        return v >= MMPS_MIN ? v / 1000.0 : v.toFloat();
+    hidden function speedValue(v as Float) as Float {
+        return v >= MMPS_MIN ? v / 1000.0 : v;
     }
 
     function openLow() as Boolean {

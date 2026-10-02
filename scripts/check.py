@@ -4,10 +4,11 @@
 These do not need the Connect IQ SDK. They catch the mistakes that would
 otherwise only show up on the watch: permission creep, secrets in the tree,
 resource files that don't parse, FIT field ids that collide, settings without
-strings, and unguarded calls into firmware-dependent APIs.
+strings, and unguarded calls into firmware-dependent APIs or storage.
 """
 import os
 import re
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
@@ -24,10 +25,20 @@ def read(path):
         return f.read()
 
 
-def walk(exts, subdirs=("source", "tests", "resources", "scripts", ".github")):
+SKIP_DIRS = {".git", "bin", "__pycache__"}
+ALL_DIRS = ("source", "tests", "resources", "scripts", "tools", "art", ".github", ".vscode")
+
+
+def walk(exts, subdirs=ALL_DIRS, top=False):
+    """Files with these extensions under subdirs (and in the repo root if top)."""
+    if top:
+        for fn in sorted(os.listdir(ROOT)):
+            if fn.endswith(exts) and os.path.isfile(os.path.join(ROOT, fn)):
+                yield fn
     for sub in subdirs:
-        for dirpath, _, files in os.walk(os.path.join(ROOT, sub)):
-            for fn in files:
+        for dirpath, dirnames, files in os.walk(os.path.join(ROOT, sub)):
+            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+            for fn in sorted(files):
                 if fn.endswith(exts):
                     yield os.path.relpath(os.path.join(dirpath, fn), ROOT)
 
@@ -60,13 +71,12 @@ for path in walk((".mc",), ("source",)):
 
 # 3. Secrets and keys never committed. Only git-tracked files count; the
 #    developer key legitimately sits in the working tree, git-ignored.
-import subprocess
 try:
     tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.splitlines()
 except Exception:
     tracked = []
     for dirpath, dirnames, files in os.walk(ROOT):
-        dirnames[:] = [d for d in dirnames if d not in (".git", "bin")]
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         tracked += [os.path.relpath(os.path.join(dirpath, fn), ROOT) for fn in files]
 for path in tracked:
     fn = os.path.basename(path)
@@ -78,10 +88,8 @@ SECRET_PATTERNS = [
     (r"-----BEGIN (RSA |EC |)PRIVATE KEY-----", "private key"),
     (r"https://[^\s/@]+:[^\s/@]+@", "URL with embedded credentials"),
 ]
-for path in walk((".mc", ".xml", ".md", ".jungle", ".py", ".yml", ".yaml", ".json"),
-                 ("source", "tests", "resources", "scripts", ".github", ".vscode", ".")):
-    if os.sep in path and not path.startswith((".github", ".vscode", "source", "tests", "resources", "scripts")):
-        continue
+TEXT_EXTS = (".mc", ".xml", ".md", ".jungle", ".py", ".yml", ".yaml", ".json", ".sh", ".ps1")
+for path in walk(TEXT_EXTS, top=True):
     text = read(path)
     for pat, what in SECRET_PATTERNS:
         if re.search(pat, text):
@@ -121,13 +129,26 @@ for key in props:
     if not re.search(r'"' + re.escape(key) + r'"', read("source/CourseRunField.mc")):
         err(f"properties.xml: property {key} is never read in CourseRunField.mc")
 
-# 5. Firmware-dependent calls are guarded.
-field = read("source/WorkoutTarget.mc")
-if "getCurrentWorkoutStep" in field and "try {" not in field:
-    err("WorkoutTarget.mc: getCurrentWorkoutStep must be wrapped in try/catch")
-fitrec = read("source/FitRecorder.mc")
-if "createField" in fitrec and "try {" not in fitrec:
-    err("FitRecorder.mc: createField must be wrapped in try/catch")
+# 5. Firmware-dependent and storage calls are guarded: each call must be
+#    inside a try block, or on a line marked "// guarded: <where>" when its
+#    function is only ever called from inside one.
+GUARDED = re.compile(r"\b(Storage\.(getValue|setValue|deleteValue)|Properties\.getValue"
+                     r"|getCurrentWorkoutStep\(|createField\()")
+for path in walk((".mc",), ("source",)):
+    stack = []   # one entry per open brace: "try" for a try block
+    for n, raw in enumerate(read(path).split("\n")):
+        code = re.sub(r'"[^"]*"', '""', raw).split("//")[0]
+        m = GUARDED.search(code)
+        if m and "try" not in stack and "// guarded:" not in raw:
+            err(f"{path}:{n + 1}: {m.group(1)} must be inside try/catch")
+        for i, ch in enumerate(code):
+            if ch == "{":
+                stack.append("try" if re.search(r"\btry\s*$", code[:i]) else "{")
+            elif ch == "}" and stack:
+                stack.pop()
+wt = read("source/WorkoutTarget.mc")
+if "getCurrentWorkoutStep" in wt and "Activity has :getCurrentWorkoutStep" not in wt:
+    err("WorkoutTarget.mc: getCurrentWorkoutStep must be guarded with 'Activity has'")
 crf = read("source/CourseRunField.mc")
 for api in ("Attention.vibrate", "Attention.playTone"):
     name = api.split(".")[1]
@@ -141,15 +162,16 @@ for path in walk((".mc",), ("source",)):
         err(f"{path}: System.println left in shipped code")
     if re.search(r"\bTODO\b|\bFIXME\b", text):
         err(f"{path}: TODO/FIXME left in shipped code")
-for path in walk((".mc", ".xml", ".md", ".jungle", ".py", ".yml"),
-                 ("source", "tests", "resources", "scripts", ".github")):
+for path in walk(TEXT_EXTS, top=True):
+    if path.endswith(".ps1"):
+        continue   # PowerShell scripts may use CRLF
     with open(os.path.join(ROOT, path), "rb") as f:
         if b"\r\n" in f.read():
             err(f"{path}: CRLF line endings (repo uses LF; see .gitattributes)")
 
 # 7. Every model class has tests.
 tests = read("tests/CourseRunTests.mc")
-for cls in ("PaceBuffer", "CourseTracker", "WorkoutTarget", "Fmt"):
+for cls in ("PaceBuffer", "CourseTracker", "WorkoutTarget", "RunState", "Fmt"):
     if cls not in tests:
         err(f"tests/CourseRunTests.mc: no tests mention {cls}")
 

@@ -49,6 +49,7 @@ class CourseTracker {
     hidden const START_SNAP_M = 100.0;     // preview lead-in dropped at START
     hidden const CATCHUP_M = 400.0;        // course this close behind: catch up, don't stay off
     hidden const LEAP_M = 400.0;           // course this far ahead of GPS movement: ignored
+    hidden const MAX_M = 1000000.0;        // 1000 km: sanity bound on restored values
 
     var courseDist as Float = 0.0;
     var mode as Number = MODE_GPS;
@@ -73,6 +74,61 @@ class CourseTracker {
         _stallTicks = 0;
         _stallGps = 0.0;
         _lastCand = null;
+    }
+
+    // State for Resume Later, which reloads the field: [length (-1 = none),
+    // courseDist, mode, last GPS distance]. Stall bookkeeping restarts.
+    function snapshot() as Array<Float or Number> {
+        return [
+            _length != null ? _length as Float : -1.0,
+            courseDist,
+            mode,
+            lastGps()
+        ] as Array<Float or Number>;
+    }
+
+    // GPS distance at the last update (0 before any).
+    function lastGps() as Float {
+        return _lastGps != null ? _lastGps as Float : 0.0;
+    }
+
+    // Restores a snapshot(). Anything malformed (older version, corrupt
+    // storage) is rejected and leaves the tracker untouched.
+    function restore(s as Object or Null) as Boolean {
+        if (!(s instanceof Array) || s.size() != 4) {
+            return false;
+        }
+        var m = s[2];
+        if (!(m instanceof Number)) {
+            return false;
+        }
+        var v = new Array<Float>[4];
+        for (var i = 0; i < 4; i++) {
+            var x = s[i];
+            if (!(x instanceof Float || x instanceof Number)) {
+                return false;
+            }
+            v[i] = (x as Float or Number).toFloat();
+        }
+        var len = v[0];
+        var dist = v[1];
+        var gps = v[3];
+        // NaN is the one value not equal to itself. (Monkey C evaluates
+        // NaN >= 0.0 as true, so range checks alone don't catch it.)
+        if (len != len || dist != dist || gps != gps
+            || !(dist >= 0.0 && dist < MAX_M && gps >= 0.0 && gps < MAX_M && len < MAX_M)
+            || m < MODE_GPS || m > MODE_OFF) {
+            return false;
+        }
+        _length = len > 0.0 ? len : null;
+        courseDist = dist;
+        mode = m;
+        _lastGps = gps;
+        _lastCand = null;
+        _stallTicks = 0;
+        _stallGps = 0.0;
+        checkMismatch();
+        return true;
     }
 
     // Official course length in metres; 0 disables rescaling.

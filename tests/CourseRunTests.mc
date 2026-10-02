@@ -1,11 +1,12 @@
 import Toybox.Activity;
 import Toybox.Lang;
+import Toybox.Math;
 import Toybox.System;
 import Toybox.Test;
 
-// Unit tests. Run with:
+// Unit tests. Run with scripts/test.sh, or by hand:
 //   monkeyc -d fr965 -f monkey.jungle -o bin/CourseRun-test.prg -y developer_key.der --unit-test
-//   monkeydo bin/CourseRun-test.prg fr965 -t
+//   monkeydo bin/CourseRun-test.prg fr965 /t      (Git Bash: MSYS2_ARG_CONV_EXCL='*')
 module CourseRunTests {
 
     // Helper (a (:test) annotation would make the runner execute it).
@@ -87,7 +88,7 @@ module CourseRunTests {
         return true;
     }
 
-    // Timer pause: time stands still, distance stands still, pace unaffected.
+    // A timer that goes backwards means a new activity: the buffer restarts.
     (:test)
     function paceBufferTimerBackwardsResets(logger as Logger) as Boolean {
         var b = new PaceBuffer(600, 2000);
@@ -195,6 +196,77 @@ module CourseRunTests {
         gps += 3.0;
         c.update(gps, 13597.0);   // +303 m correction
         Test.assert(near(c.courseDist, 7403.0, 0.01));
+        return true;
+    }
+
+    // Resume Later: a snapshot restores into a fresh tracker, which carries
+    // on from the saved distance (no restart at 0, no START lead-in snap).
+    (:test)
+    function courseTrackerSnapshotRestore(logger as Logger) as Boolean {
+        var a = new CourseTracker();
+        a.preview(10000.0);
+        a.update(0.0, 10000.0);
+        a.update(3000.0, 7000.0);
+        var b = new CourseTracker();
+        Test.assert(b.restore(a.snapshot()));
+        Test.assert(near(b.courseDist, 3000.0, 0.01));
+        Test.assert(near(b.lengthMeters(), 10000.0, 0.01));
+        Test.assert(b.mode == CourseTracker.MODE_COURSE);
+        b.update(3010.0, 6990.0);
+        Test.assert(near(b.courseDist, 3010.0, 0.01));
+        return true;
+    }
+
+    // Corrupt or foreign storage never gets into the tracker.
+    (:test)
+    function courseTrackerRestoreHostile(logger as Logger) as Boolean {
+        var c = new CourseTracker();
+        var bad = [null, 5, "run", [], [1.0, 2.0, 1.0], [1.0, 2.0, 9.0, 0.0],
+                   [10000.0, -5.0, 1.0, 0.0], [10000.0, 5.0, 1.0, -1.0],
+                   [10000.0, "x", 1.0, 0.0], [10000.0, 1.0e12, 1.0, 0.0],
+                   [10000.0, 5.0, 1.0, 0.0, 0.0], [10000.0, 5.0, 1.7, 0.0]];
+        for (var i = 0; i < bad.size(); i++) {
+            Test.assert(!c.restore(bad[i]));
+        }
+        Test.assert(near(c.courseDist, 0.0, 0.0001));
+        Test.assert(!c.hasCourse());
+        return true;
+    }
+
+    // Resume Later state: round trip, and anything from another activity,
+    // an older format, the future, or corrupt storage is refused.
+    (:test)
+    function runStateDecode(logger as Logger) as Boolean {
+        var r = new RunState();
+        var snap = [10000.0, 3000.0, 1, 3000.0];
+        var ok = r.encode(1700000000, 60000, 30000, 1500.0, 45000, snap);
+        Test.assert(r.decode(ok, 1700000000, 61000));
+        Test.assert(r.timerMs == 60000 && r.lapStartMs == 30000 && r.stepStartMs == 45000);
+        Test.assert(near(r.lapStartDist, 1500.0, 0.01));
+        Test.assert(new CourseTracker().restore(r.tracker));
+
+        var bad = [
+            null, 7, "run", [], ok.slice(0, 6),
+            [2, 1700000000, 60000, 30000, 1500.0, 45000, snap],          // other format
+            [1, 1700000001, 60000, 30000, 1500.0, 45000, snap],          // other activity
+            [1, 1700000000, 99000, 30000, 1500.0, 45000, snap],          // ahead of the timer
+            [1, 1700000000, 0, 30000, 1500.0, 45000, snap],
+            [1, 1700000000, 60000.0, 30000, 1500.0, 45000, snap],        // wrong types
+            [1, 1700000000, 60000, "x", 1500.0, 45000, snap],
+            [1, 1700000000, 60000, 30000, null, 45000, snap],
+            [1, 1700000000, 60000, 30000, 1500.0, [1], snap]
+        ];
+        for (var i = 0; i < bad.size(); i++) {
+            Test.assert(!new RunState().decode(bad[i], 1700000000, 61000));
+        }
+        // Marks outside [0, saved timer] are clamped, a NaN lap distance zeroed.
+        var nan = Math.sqrt(-1.0);
+        Test.assert(r.decode([1, 1700000000, 60000, 90000, nan, -5, snap], 1700000000, 61000));
+        Test.assert(r.lapStartMs == 60000 && r.stepStartMs == 0);
+        Test.assert(near(r.lapStartDist, 0.0, 0.0001));
+        // A corrupt tracker part passes decode but not the tracker.
+        Test.assert(r.decode([1, 1700000000, 60000, 0, 0.0, 0, [nan, 1.0, 1, 0.0]], 1700000000, 61000));
+        Test.assert(!new CourseTracker().restore(r.tracker));
         return true;
     }
 
@@ -542,12 +614,12 @@ module CourseRunTests {
         Test.assertEqual(Fmt.paceFromSpeed(0.0, Fmt.M_PER_MI), "--:--");
         Test.assertEqual(Fmt.paceFromSpeed(null, Fmt.M_PER_MI), "--:--");
         Test.assertEqual(Fmt.timer(-5000), "0:00");
-        Test.assertEqual(Fmt.parsePace("   ").toString(), "0.000000");
-        Test.assertEqual(Fmt.parsePace(":").toString(), "0.000000");
-        Test.assertEqual(Fmt.parsePace("1:00").toString(), "0.000000");   // below 2:00 floor
-        Test.assertEqual(Fmt.parsePace("45:00").toString(), "0.000000");  // above 30:00 ceiling
-        Test.assertEqual(Fmt.parsePace("9:00:00").toString(), "0.000000");
-        Test.assertEqual(Fmt.parsePace("-9:00").toString(), "0.000000");
+        Test.assert(near(Fmt.parsePace("   "), 0.0, 0.0001));
+        Test.assert(near(Fmt.parsePace(":"), 0.0, 0.0001));
+        Test.assert(near(Fmt.parsePace("1:00"), 0.0, 0.0001));   // below 2:00 floor
+        Test.assert(near(Fmt.parsePace("45:00"), 0.0, 0.0001));  // above 30:00 ceiling
+        Test.assert(near(Fmt.parsePace("9:00:00"), 0.0, 0.0001));
+        Test.assert(near(Fmt.parsePace("-9:00"), 0.0, 0.0001));
         return true;
     }
 

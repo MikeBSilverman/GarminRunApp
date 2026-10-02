@@ -20,33 +20,38 @@ python art/build_cover.py  bin/preview/shot_fr965_goal.png                      
 Screen images for the listing (art/screens/*.png, raw 454x454) are cut from the
 captures using the band geometry: the band starts at the top of the display and
 ends at 28% of its height, which gives the diameter; see the git history of
-art/screens for the snippet, or ask Claude to regenerate them.
+art/screens for the snippet.
 
 ## Replaying a run (`replay.py`)
 
 Feeds an activity FIT file (Garmin Connect > Export Original) through Python
-ports of PaceBuffer and WorkoutTarget and the field's compute loop, and prints
-per workout step: seconds shown as ON PACE / SLOW DOWN / SPEED UP, actual pace,
-the alerts the field would fire, and the native Run app's own pace alerts.
+ports of the field's models and its compute loop, and reports per workout step
+(or per lap without a workout): seconds shown as ON PACE / SLOW DOWN / SPEED UP,
+actual pace, the alerts the field would fire and the Run app's own pace alerts;
+then a per-mile table (course mile, the watch's own distance then, split,
+ahead/behind goal) and any OFF COURSE episodes.
 ```
-python tools/replay.py run.fit                      # current logic
-python tools/replay.py run.fit --legacy             # v0.2.0 logic, to compare
-python tools/replay.py run.fit --target-units mps   # firmware gives m/s targets
-python tools/replay.py run.fit --settle 20 --smooth 15 --changes --csv run.csv
-python tools/replay.py run.fit --course COURSE.fit  # replay CourseTracker too (.fit or .gpx)
-python tools/replay.py half.fit --course lap.gpx --laps 3 --fit-to-run --official 13.1094 --goal 8:55     --write-course race.gpx                         # lapped race from a one-lap route
+python tools/replay.py run.fit                          # workout or goal run
+python tools/replay.py run.fit --goal 8:55 --alerts always
+python tools/replay.py run.fit --course COURSE.fit      # replay CourseTracker too (.fit or .gpx)
+python tools/replay.py half.fit --course lap.gpx --laps 3 --fit-to-run     --official 13.1094 --goal 8:55 --write-course race.gpx
+python tools/replay.py run.fit --smooth 15 --changes --csv run.csv
 ```
+distanceToDestination isn't in the FIT file. Without `--course` the pace model
+runs on the field's recorded `course_dist` (or GPS distance). With `--course`
+(Garmin Connect > Courses > Export, or any GPX) it is simulated by projecting
+each GPS fix onto the course, and CourseTracker is replayed on it; the report
+compares that with the recorded course_dist (within ~20-35 m on the first FR965
+run, whose matcher noise was about twice the watch's).
+
 `--fit-to-run` re-cuts a looped route to start where the run started (best fit
 over the first km, so a route that passes the start twice still lines up) and
-finish where it ended; `--write-course` saves the result as a GPX that can be
-loaded on the watch. `--goal` replays goal-pace mode; with no workout the
-report is per lap, plus a per-mile table (course mile, watch distance then,
-split, ahead/behind goal) and any OFF COURSE episodes.
-distanceToDestination isn't in the FIT file. Without `--course` the pace model
-runs on the field's recorded `course_dist` (or GPS). With `--course` (Garmin
-Connect > Courses > Export, FIT or GPX) dtd is simulated by projecting each GPS
-fix onto the course, searching forward from the last match, and CourseTracker
-is replayed on it; the report compares that with the recorded course_dist
-(within ~20 m on the first FR965 run). `--official` sets the official length. From v0.3.0 the field
-records `band_status`, and the report adds a match % against what the watch
-showed. Keep the ports in step with source/*.mc. Needs `pip install fitparse`.
+finish where it ended, adding the run's own track for a finish chute off the
+route; `--laps` is the number of laps in the race; `--write-course` saves the
+course used as a GPX that can be loaded on the watch. `--official` is the
+official-length setting.
+
+From v0.3.0 the field records `band_status` each second, and the report adds a
+match % between the replay and what the watch showed. Heart-rate zone targets
+aren't replayed. Keep the ports in step with source/*.mc. Needs
+`pip install fitparse`.

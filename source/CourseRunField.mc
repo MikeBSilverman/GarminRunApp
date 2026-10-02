@@ -17,6 +17,11 @@ import Toybox.WatchUi;
 // Before START the band reports whether a course is loaded ("COURSE READY").
 // Designed for a 1-field data screen; in a smaller slot it draws a compact
 // version (course distance on the status colour with a label).
+//
+// Resume Later reloads data fields, which would restart course distance at
+// 0 mid-run, so the run state (RunState) is saved to Application.Storage
+// every 3 minutes and when the timer stops, and restored by the first
+// compute() of a new instance of the same activity.
 class CourseRunField extends WatchUi.DataField {
     hidden const SAMPLE_MS = 2000;
     hidden const BUFFER_SLOTS = 900;   // 30 min of history at 2 s
@@ -24,6 +29,9 @@ class CourseRunField extends WatchUi.DataField {
     hidden const SPLIT_FLASH_MS = 6000;
     hidden const ALERT_GAP_MS = 15000;
     hidden const SETTLE_MS = 30000;    // no pace verdict for this long after a step starts
+    hidden const STATE_KEY = "run";
+    hidden const SAVE_EVERY_MS = 180000;   // Resume Later always stops the timer, which saves
+    hidden const REFRESH_TICKS = 15;       // poll the workout step; step callbacks cover changes
 
     hidden var _tracker as CourseTracker;
     hidden var _buf as PaceBuffer;      // course distance: splits, rolling pace
@@ -36,7 +44,6 @@ class CourseRunField extends WatchUi.DataField {
     hidden var _lastTimerMs as Number = -1;
     hidden var _running as Boolean = false;   // timer advanced on the last compute
     hidden var _hr as Number or Null = null;
-    hidden var _speed as Float or Null = null;
     hidden var _tick as Number = 0;
 
     // Settings
@@ -55,6 +62,10 @@ class CourseRunField extends WatchUi.DataField {
 
     // Start of the current workout step (or of the run), for the settle period
     hidden var _stepStartMs as Number = 0;
+
+    // Resume Later persistence
+    hidden var _startSec as Number or Null = null;   // activity start, identifies it
+    hidden var _lastSaveMs as Number = 0;
 
     // Lap pace
     hidden var _lapStartMs as Number = 0;
@@ -147,6 +158,14 @@ class CourseRunField extends WatchUi.DataField {
         _lapStartDist = 0.0;
         _lastSplitIdx = 0;
         _splitUntilMs = 0;
+        _lastSaveMs = 0;
+        _lastAlertStatus = WorkoutTarget.STATUS_NONE;
+        _lastAlertMs = -100000;
+        clearState();
+    }
+
+    function onTimerStop() as Void {
+        saveState();
     }
 
     function onTimerLap() as Void {
@@ -180,11 +199,19 @@ class CourseRunField extends WatchUi.DataField {
         var timer = info.timerTime;
         _timerMs = timer != null ? timer : 0;
         _hr = info.currentHeartRate;
+        var started = info.startTime;
+        _startSec = started != null ? started.value() : null;
 
         if (_timerMs == 0) {
             // Before START: learn the course length so the lock is right
             // before the gun and the band can say COURSE READY.
             _tracker.preview(info.distanceToDestination);
+            _running = false;
+        } else if (_lastTimerMs < 0) {
+            // First compute of an instance created mid-activity (Resume
+            // Later, or the field added during a run): pick up any saved
+            // state; the timer may not be running yet, so no update.
+            restoreState();
             _running = false;
         } else if (_timerMs != _lastTimerMs) {
             // Timer is running. When it is stopped or paused timerTime does
@@ -198,6 +225,9 @@ class CourseRunField extends WatchUi.DataField {
             _gpsBuf.add(_timerMs, _gpsDist);
             _fit.update(_tracker.courseDist, _timerMs);
             checkSplit();
+            if (_timerMs - _lastSaveMs >= SAVE_EVERY_MS) {
+                saveState();
+            }
         } else {
             _running = false;
         }
@@ -206,25 +236,76 @@ class CourseRunField extends WatchUi.DataField {
         // Step callbacks cover transitions; this catches anything missed
         // (e.g. the field added mid-workout).
         _tick++;
-        if (_tick % 5 == 0 && _target.refresh()) {
+        if (_tick % REFRESH_TICKS == 0 && _target.refresh()) {
             newStep();
         }
 
-        _speed = _running ? currentSpeed() : null;
-        var prev = _target.status;
         var status;
-        if (_running && _timerMs - _stepStartMs < SETTLE_MS) {
-            // Settling into the step (or the start of the run): the band
-            // shows the target without a verdict.
+        if (!_running || _target.isRest || _timerMs - _stepStartMs < SETTLE_MS) {
+            // Stopped, a rest step, or settling into the step (or the start
+            // of the run): no verdict; the band shows the target or step.
             _target.status = WorkoutTarget.STATUS_NONE;
             status = _target.status;
         } else {
-            status = _target.evaluate(_speed, _hr);
+            status = _target.evaluate(currentSpeed(), _hr);
         }
-        _fit.setBand(_running ? status : WorkoutTarget.STATUS_NONE);
-        if (_running && status != prev) {
+        if (_running) {
+            _fit.setBand(status);
             maybeAlert(status);
         }
+    }
+
+    // ---- Resume Later persistence -----------------------------------------
+
+    hidden function saveState() as Void {
+        if (_startSec == null || _timerMs <= 0) {
+            return;
+        }
+        _lastSaveMs = _timerMs;
+        var state = new RunState().encode(_startSec as Number, _timerMs, _lapStartMs, _lapStartDist,
+                                          _stepStartMs, _tracker.snapshot());
+        try {
+            Application.Storage.setValue(STATE_KEY, state as Array<Application.Storage.ValueType>);
+        } catch (e) {
+            // Storage full or unavailable: the field still works, it just
+            // can't survive Resume Later.
+        }
+    }
+
+    hidden function clearState() as Void {
+        try {
+            Application.Storage.deleteValue(STATE_KEY);
+        } catch (e) {
+        }
+    }
+
+    // Carry on from this activity's saved state, if there is any. Anything
+    // malformed or from another activity is ignored (RunState.decode,
+    // CourseTracker.restore).
+    hidden function restoreState() as Void {
+        if (_startSec == null) {
+            return;
+        }
+        var stored = null;
+        try {
+            stored = Application.Storage.getValue(STATE_KEY);
+        } catch (e) {
+            return;
+        }
+        var rs = new RunState();
+        if (!rs.decode(stored, _startSec as Number, _timerMs) || !_tracker.restore(rs.tracker)) {
+            return;
+        }
+        var cd = _tracker.courseDist;
+        _lapStartMs = rs.lapStartMs;
+        _lapStartDist = rs.lapStartDist <= cd ? rs.lapStartDist : cd;
+        _stepStartMs = rs.stepStartMs;
+        _lastSplitIdx = (cd / _paceUnit).toNumber();
+        _fit.onLap(_lapStartDist);
+        _gpsDist = _tracker.lastGps();
+        _buf.add(rs.timerMs, cd);
+        _gpsBuf.add(rs.timerMs, _gpsDist);
+        _lastSaveMs = rs.timerMs;
     }
 
     // Speed for the band: GPS distance over the smoothing window, scaled to
@@ -260,6 +341,9 @@ class CourseRunField extends WatchUi.DataField {
         _lastSplitIdx = idx;
     }
 
+    // One alert per SLOW DOWN / SPEED UP episode, at most every ALERT_GAP_MS;
+    // an episode that starts inside the gap alerts when the gap ends. Called
+    // every running tick. Follows the watch's vibration and tone settings.
     hidden function maybeAlert(status as Number) as Void {
         var goal = _target.source == WorkoutTarget.SOURCE_GOAL;
         if (_alerts == 0 || (_alerts == 1 && !goal)) {
@@ -274,10 +358,11 @@ class CourseRunField extends WatchUi.DataField {
         }
         _lastAlertStatus = status;
         _lastAlertMs = _timerMs;
-        if (Attention has :vibrate) {
+        var ds = System.getDeviceSettings();
+        if (ds.vibrateOn && Attention has :vibrate) {
             Attention.vibrate([new Attention.VibeProfile(60, 400)] as Array<Attention.VibeProfile>);
         }
-        if (Attention has :playTone) {
+        if (ds.tonesOn && Attention has :playTone) {
             Attention.playTone(status == WorkoutTarget.STATUS_FAST
                                ? Attention.TONE_ALERT_HI : Attention.TONE_ALERT_LO);
         }

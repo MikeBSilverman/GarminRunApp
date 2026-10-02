@@ -5,3 +5,4 @@ bin/
 developer_key.*
 .DS_Store
 __pycache__/
+.vscode/settings.json
