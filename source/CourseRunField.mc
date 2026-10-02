@@ -20,11 +20,15 @@ import Toybox.WatchUi;
 class CourseRunField extends WatchUi.DataField {
     hidden const SAMPLE_MS = 2000;
     hidden const BUFFER_SLOTS = 900;   // 30 min of history at 2 s
+    hidden const GPS_SLOTS = 64;       // 128 s at 2 s: covers the 120 s smoothing max
     hidden const SPLIT_FLASH_MS = 6000;
     hidden const ALERT_GAP_MS = 15000;
+    hidden const SETTLE_MS = 30000;    // no pace verdict for this long after a step starts
 
     hidden var _tracker as CourseTracker;
-    hidden var _buf as PaceBuffer;
+    hidden var _buf as PaceBuffer;      // course distance: splits, rolling pace
+    hidden var _gpsBuf as PaceBuffer;   // GPS distance: the band's current speed
+    hidden var _gpsDist as Float = 0.0;
     hidden var _target as WorkoutTarget;
     hidden var _fit as FitRecorder;
 
@@ -49,6 +53,9 @@ class CourseRunField extends WatchUi.DataField {
     hidden var _paceUnit as Float = Fmt.M_PER_MI;
     hidden var _screenH as Number = 454;
 
+    // Start of the current workout step (or of the run), for the settle period
+    hidden var _stepStartMs as Number = 0;
+
     // Lap pace
     hidden var _lapStartMs as Number = 0;
     hidden var _lapStartDist as Float = 0.0;
@@ -66,6 +73,7 @@ class CourseRunField extends WatchUi.DataField {
         DataField.initialize();
         _tracker = new CourseTracker();
         _buf = new PaceBuffer(BUFFER_SLOTS, SAMPLE_MS);
+        _gpsBuf = new PaceBuffer(GPS_SLOTS, SAMPLE_MS);
         _target = new WorkoutTarget();
         cacheDeviceSettings();
         _fit = new FitRecorder(self, _distUnit);
@@ -127,11 +135,14 @@ class CourseRunField extends WatchUi.DataField {
     function onTimerReset() as Void {
         _tracker.reset();
         _buf.reset();
+        _gpsBuf.reset();
+        _gpsDist = 0.0;
         _fit.reset();
         _target.status = WorkoutTarget.STATUS_NONE;
         _timerMs = 0;
         _lastTimerMs = -1;
         _running = false;
+        _stepStartMs = 0;
         _lapStartMs = 0;
         _lapStartDist = 0.0;
         _lastSplitIdx = 0;
@@ -146,10 +157,22 @@ class CourseRunField extends WatchUi.DataField {
 
     function onWorkoutStarted() as Void {
         _target.refresh();
+        newStep();
     }
 
+    // The native app starts a new lap at each step but calls only this, not
+    // onTimerLap (seen on FR965), so lap distance and lap pace restart here.
     function onWorkoutStepComplete() as Void {
         _target.refresh();
+        newStep();
+        onTimerLap();
+    }
+
+    // A new target: drop the old verdict and give the smoothed speed time to
+    // reflect the new effort before judging it.
+    hidden function newStep() as Void {
+        _stepStartMs = _timerMs;
+        _target.status = WorkoutTarget.STATUS_NONE;
     }
 
     // Called once a second by the Run activity, before and after START.
@@ -169,8 +192,10 @@ class CourseRunField extends WatchUi.DataField {
             // history, or the recorded fields.
             _running = true;
             var gps = info.elapsedDistance;
-            _tracker.update(gps != null ? gps : 0.0, info.distanceToDestination);
+            _gpsDist = gps != null ? gps : _gpsDist;
+            _tracker.update(_gpsDist, info.distanceToDestination);
             _buf.add(_timerMs, _tracker.courseDist);
+            _gpsBuf.add(_timerMs, _gpsDist);
             _fit.update(_tracker.courseDist, _timerMs);
             checkSplit();
         } else {
@@ -181,16 +206,43 @@ class CourseRunField extends WatchUi.DataField {
         // Step callbacks cover transitions; this catches anything missed
         // (e.g. the field added mid-workout).
         _tick++;
-        if (_tick % 5 == 0) {
-            _target.refresh();
+        if (_tick % 5 == 0 && _target.refresh()) {
+            newStep();
         }
 
-        _speed = _running ? _buf.smoothedSpeed(_timerMs, _tracker.courseDist, _smoothMs) : null;
+        _speed = _running ? currentSpeed() : null;
         var prev = _target.status;
-        var status = _target.evaluate(_speed, _hr);
+        var status;
+        if (_running && _timerMs - _stepStartMs < SETTLE_MS) {
+            // Settling into the step (or the start of the run): the band
+            // shows the target without a verdict.
+            _target.status = WorkoutTarget.STATUS_NONE;
+            status = _target.status;
+        } else {
+            status = _target.evaluate(_speed, _hr);
+        }
+        _fit.setBand(_running ? status : WorkoutTarget.STATUS_NONE);
         if (_running && status != prev) {
             maybeAlert(status);
         }
+    }
+
+    // Speed for the band: GPS distance over the smoothing window, scaled to
+    // the course's measure by the run's course/GPS ratio. Course distance
+    // comes from projecting onto the route, which advances unevenly round
+    // bends (30 s course speed was 2.7% noisy on an FR965 run, more than a
+    // 10 s/mi band), so it drives the totals but not the instant verdict.
+    hidden function currentSpeed() as Float or Null {
+        var v = _gpsBuf.smoothedSpeed(_timerMs, _gpsDist, _smoothMs);
+        if (v == null) {
+            return null;
+        }
+        var k = 1.0;
+        if (_gpsDist > 1000.0 && _tracker.mode == CourseTracker.MODE_COURSE) {
+            k = _tracker.courseDist / _gpsDist;
+            k = k < 0.95 ? 0.95 : (k > 1.05 ? 1.05 : k);
+        }
+        return v * k;
     }
 
     hidden function checkSplit() as Void {

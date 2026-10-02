@@ -10,12 +10,27 @@ import Toybox.Lang;
 //     brief snap to the finish point at the start line of a loop course
 //     doesn't lock a length of zero;
 //   - early in the run, a dtd that implies a longer course re-locks the
-//     length (the first reading can be the distance to the start point).
+//     length (the first reading can be the distance to the start point);
+//   - at START, a first reading up to 100 m under the previewed length
+//     becomes the length: the preview included the walk to the start line
+//     (seen on an FR965 loop: the whole run read 16 m long).
 //
 // Distance covered never goes backwards. If the course value stops advancing
 // while GPS distance keeps growing (off course, wrong lap, or the watch
 // stopped navigating), the tracker adds GPS distance instead and reports
-// MODE_OFF so the screen can flag it.
+// MODE_OFF so the screen can flag it. When the course value advances again
+// but sits below the distance shown (GPS added meanwhile, or a turnaround
+// the route cuts short), the shown distance grows at half the course rate
+// until the course catches up: back to MODE_COURSE at once, never backwards,
+// and no minutes of OFF COURSE while the gap closes (seen replaying a
+// lapped half marathon: 7.5 min).
+//
+// A reading more than 400 m ahead of what GPS movement allows is ignored
+// (treated as not advancing): on a lapped course the watch could match a
+// later lap, or snap to the finish when passing it on lap 1, and distance
+// never goes backwards, so taking it would lock in a lap's error. If the
+// watch keeps saying it, the stall detector reports OFF COURSE and counts
+// GPS until the course value makes sense again.
 //
 // An optional official length rescales the course value (a GPX that measures
 // 13.25 mi still reads 13.11 at the finish), but only when the loaded course
@@ -31,6 +46,9 @@ class CourseTracker {
     hidden const STALL_SECS = 20;          // course value stuck this long...
     hidden const STALL_GPS_M = 50.0;       // ...while GPS moved this far => off course
     hidden const RESCALE_TOL = 0.05;       // official vs loaded length tolerance
+    hidden const START_SNAP_M = 100.0;     // preview lead-in dropped at START
+    hidden const CATCHUP_M = 400.0;        // course this close behind: catch up, don't stay off
+    hidden const LEAP_M = 400.0;           // course this far ahead of GPS movement: ignored
 
     var courseDist as Float = 0.0;
     var mode as Number = MODE_GPS;
@@ -41,6 +59,7 @@ class CourseTracker {
     hidden var _lastGps as Float or Null = null;
     hidden var _stallTicks as Number = 0;
     hidden var _stallGps as Float = 0.0;
+    hidden var _lastCand as Float or Null = null;   // last course value, for its rate
 
     function initialize() {
     }
@@ -53,6 +72,7 @@ class CourseTracker {
         _lastGps = null;
         _stallTicks = 0;
         _stallGps = 0.0;
+        _lastCand = null;
     }
 
     // Official course length in metres; 0 disables rescaling.
@@ -116,6 +136,7 @@ class CourseTracker {
     // gps: Activity.Info.elapsedDistance (m). dtd: distanceToDestination (m) or
     // null. Call once per second only while the timer is running.
     function update(gps as Float, dtd as Float or Null) as Void {
+        var first = _lastGps == null;
         var delta = 0.0;
         if (_lastGps != null) {
             delta = gps - _lastGps;
@@ -127,6 +148,7 @@ class CourseTracker {
 
         if (dtd == null || dtd < 0.0) {
             // No course value at all.
+            _lastCand = null;
             courseDist += delta;
             if (mode == MODE_COURSE) {
                 mode = MODE_OFF;
@@ -135,6 +157,13 @@ class CourseTracker {
         }
 
         var implied = dtd + courseDist;
+        if (first && _length != null) {
+            var gap = (_length as Float) - dtd;
+            if (gap > 0.0 && gap < START_SNAP_M) {
+                _length = dtd;
+                checkMismatch();
+            }
+        }
         if (_length == null) {
             _length = implied;
             checkMismatch();
@@ -153,8 +182,26 @@ class CourseTracker {
             cand = cand * _official / len2;
         }
 
+        if (!first && cand - courseDist > delta * 2.0 + LEAP_M) {
+            // Implausible leap ahead: treat as no advance (stall logic below).
+            _lastCand = null;
+            cand = courseDist;
+        }
+        var step = _lastCand != null ? cand - (_lastCand as Float) : 0.0;
+        _lastCand = cand;
+
         if (cand > courseDist) {
             courseDist = cand;
+            mode = MODE_COURSE;
+            _stallTicks = 0;
+            _stallGps = 0.0;
+            return;
+        }
+
+        // Course advancing (at least half the GPS rate, so jitter doesn't
+        // count) but behind the shown distance: close the gap gradually.
+        if (step > 1.0 && step >= delta * 0.5 && courseDist - cand < CATCHUP_M) {
+            courseDist += step * 0.5;
             mode = MODE_COURSE;
             _stallTicks = 0;
             _stallGps = 0.0;

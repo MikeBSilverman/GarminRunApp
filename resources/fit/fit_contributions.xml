@@ -1,6 +1,7 @@
 <resources>
     <!-- Ids 0-3: miles set. Ids 4-7: km set. Only one set is created per
-         activity (see source/FitRecorder.mc). -->
+         activity (see source/FitRecorder.mc). Id 8 (band status, both sets)
+         is diagnostic for tools/replay.py and not shown in Connect. -->
     <fitContributions>
         <fitField id="0" displayInChart="true" sortOrder="0" precision="2"
                   chartTitle="@Strings.FitCourseDistChart" dataLabel="@Strings.FitCourseDist"
@@ -21,5 +22,8 @@
                   dataLabel="@Strings.FitCourseDist" unitLabel="@Strings.FitKm" />
         <fitField id="7" displayInActivitySummary="true" sortOrder="7" precision="2"
                   dataLabel="@Strings.FitCoursePace" unitLabel="@Strings.FitMinKm" />
+
+        <fitField id="8" sortOrder="8" precision="0"
+                  dataLabel="@Strings.FitBandStatus" unitLabel="@Strings.FitNoUnit" />
     </fitContributions>
 </resources>

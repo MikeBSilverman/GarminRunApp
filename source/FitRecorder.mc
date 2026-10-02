@@ -10,15 +10,21 @@ import Toybox.WatchUi;
 // Garmin Connect's labels and units come from resources/fit/fit_contributions.xml
 // and are fixed at build time, so there are two field sets (miles, km) and
 // only the one matching the watch's units at activity start is created.
+//
+// band_status (id 8, both unit sets) records what the status band showed
+// each second (WorkoutTarget.STATUS_*), so tools/replay.py can compare a
+// run against what the code predicts.
 class FitRecorder {
     // Field ids must match fit_contributions.xml.
     hidden const MI_BASE = 0;
     hidden const KM_BASE = 4;
+    hidden const BAND_ID = 8;
 
     hidden var _record as FitContributor.Field or Null = null;   // course distance over time
     hidden var _lap as FitContributor.Field or Null = null;      // course distance this lap
     hidden var _dist as FitContributor.Field or Null = null;     // session course distance
     hidden var _pace as FitContributor.Field or Null = null;     // session course pace, decimal min
+    hidden var _band as FitContributor.Field or Null = null;     // band status each second
     hidden var _unitM as Float;
     hidden var _lapStart as Float = 0.0;
 
@@ -36,6 +42,8 @@ class FitRecorder {
                 {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => u});
             _pace = field.createField("course_pace", base + 3, FitContributor.DATA_TYPE_FLOAT,
                 {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "min/" + u});
+            _band = field.createField("band_status", BAND_ID, FitContributor.DATA_TYPE_UINT8,
+                {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => ""});
         } catch (e) {
             // Recording is a bonus; the screen works without it.
         }
@@ -48,6 +56,13 @@ class FitRecorder {
     // New lap started: lap course distance counts from here.
     function onLap(courseDist as Float) as Void {
         _lapStart = courseDist;
+    }
+
+    // Band status shown this second (WorkoutTarget.STATUS_*).
+    function setBand(status as Number) as Void {
+        if (_band != null) {
+            _band.setData(status);
+        }
     }
 
     // Called every compute() while the timer runs.

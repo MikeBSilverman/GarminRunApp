@@ -28,4 +28,6 @@
     <string id="FitKm">km</string>
     <string id="FitMinMi">min/mi</string>
     <string id="FitMinKm">min/km</string>
+    <string id="FitBandStatus">Pace Band</string>
+    <string id="FitNoUnit"> </string>
 </strings>

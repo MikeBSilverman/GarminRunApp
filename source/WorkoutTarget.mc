@@ -12,7 +12,11 @@ import Toybox.UserProfile;
 // so a firmware that does throw just shows "no target".
 //
 // Target encodings follow the FIT workout_step message:
-//   speed:      targetValueLow/High in mm/s (low = slower); 0 = open bound
+//   speed:      targetValueLow/High in mm/s (low = slower); 0 = open bound.
+//               Some firmware (and the simulator) hands over m/s instead; a
+//               value under 100 can't be mm/s for a run, so it is read as m/s.
+//               (An FR965 run read as mm/s turned 8:10/mi into 0.003 m/s and
+//               showed SLOW DOWN all workout.)
 //   heart rate: > 100 means bpm + 100; 1..5 with low == high is a zone;
 //               otherwise 1..100 is percent of max HR
 class WorkoutTarget {
@@ -34,6 +38,7 @@ class WorkoutTarget {
     }
 
     hidden const OPEN_HIGH = 99.0;   // m/s; "no fast limit"
+    hidden const MMPS_MIN = 100;     // speed values at or above this are mm/s
     hidden const HYST = 0.015;       // 1.5% dead band before status changes
 
     var kind as Number = KIND_NONE;
@@ -79,7 +84,10 @@ class WorkoutTarget {
         source = SOURCE_GOAL;
     }
 
-    function refresh() as Void {
+    // Re-reads the workout step. Returns true when the target changed (new
+    // step, rest/active switch), so the caller can restart its settle period.
+    function refresh() as Boolean {
+        var was = [kind, low, high, isRest, stepLabel];
         kind = KIND_NONE;
         source = SOURCE_NONE;
         hasWorkout = false;
@@ -93,6 +101,8 @@ class WorkoutTarget {
             }
         }
         applyGoal();
+        return was[0] != kind || was[1] != low || was[2] != high
+            || was[3] != isRest || !stepLabel.equals(was[4]);
     }
 
     hidden function readWorkout() as Void {
@@ -142,7 +152,7 @@ class WorkoutTarget {
     }
 
     // Pure parser, separated from refresh() so it can be unit tested.
-    function setFrom(targetType as Number or Null, lo as Number or Null, hi as Number or Null,
+    function setFrom(targetType as Number or Null, lo as Numeric or Null, hi as Numeric or Null,
                      zones as Array<Number> or Null) as Void {
         kind = KIND_NONE;
         if (targetType == null || lo == null || hi == null) {
@@ -152,8 +162,8 @@ class WorkoutTarget {
             if (lo <= 0 && hi <= 0) {
                 return;
             }
-            var a = lo / 1000.0;
-            var b = hi / 1000.0;
+            var a = speedValue(lo);
+            var b = speedValue(hi);
             if (a > 0.0 && b > 0.0 && a > b) {
                 var tmp = a;
                 a = b;
@@ -168,8 +178,8 @@ class WorkoutTarget {
                 low = (lo > 100 ? lo - 100 : lo).toFloat();
                 high = (hi > 100 ? hi - 100 : hi).toFloat();
             } else if (lo == hi && lo >= 1 && lo <= 5 && zones != null && zones.size() >= 6) {
-                low = zones[lo - 1].toFloat();
-                high = zones[lo].toFloat();
+                low = zones[lo.toNumber() - 1].toFloat();
+                high = zones[lo.toNumber()].toFloat();
             } else if (lo > 0 && hi > 0 && zones != null && zones.size() > 0) {
                 var maxHr = zones[zones.size() - 1].toFloat();
                 low = maxHr * lo / 100.0;
@@ -184,6 +194,11 @@ class WorkoutTarget {
             }
             kind = KIND_HR;
         }
+    }
+
+    // m/s from a speed target value in mm/s or m/s (see the class comment).
+    hidden function speedValue(v as Numeric) as Float {
+        return v >= MMPS_MIN ? v / 1000.0 : v.toFloat();
     }
 
     function openLow() as Boolean {

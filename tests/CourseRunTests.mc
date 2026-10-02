@@ -138,6 +138,66 @@ module CourseRunTests {
         return true;
     }
 
+    // A turnaround the route cuts short: course stalls, GPS goes 60 m on,
+    // MODE_OFF adds it. Back on the route the course advances 3 m/s but sits
+    // 60 m behind: back to COURSE at once, closing the gap at half rate.
+    (:test)
+    function courseTrackerCatchesUpAfterStall(logger as Logger) as Boolean {
+        var c = new CourseTracker();
+        c.update(0.0, 10000.0);
+        c.update(1000.0, 9000.0);
+        var gps = 1000.0;
+        for (var i = 1; i <= 20; i++) {
+            gps += 3.0;
+            c.update(gps, 9000.0);
+        }
+        Test.assert(c.mode == CourseTracker.MODE_OFF);
+        Test.assert(near(c.courseDist, 1060.0, 0.01));
+        var dtd = 9000.0;
+        for (var j = 1; j <= 10; j++) {
+            gps += 3.0;
+            dtd -= 3.0;
+            c.update(gps, dtd);
+            Test.assert(c.mode == CourseTracker.MODE_COURSE);
+        }
+        // Course at 1030, shown 1060 + 10 x 1.5 = 1075: still closing.
+        Test.assert(near(c.courseDist, 1075.0, 0.01));
+        for (var k = 1; k <= 40; k++) {
+            gps += 3.0;
+            dtd -= 3.0;
+            c.update(gps, dtd);
+        }
+        Test.assert(near(c.courseDist, 1150.0, 0.01));   // caught up: course value again
+        return true;
+    }
+
+    // Lapped course: passing the finish area on lap 1, the watch snaps to
+    // the finish (or matches lap 3). Ignored; if it persists, OFF COURSE on
+    // GPS; when the watch recovers, back on course. A 300 m correction is
+    // within reason and is taken at once.
+    (:test)
+    function courseTrackerIgnoresLeaps(logger as Logger) as Boolean {
+        var c = new CourseTracker();
+        c.update(0.0, 21000.0);
+        c.update(7000.0, 14000.0);
+        var gps = 7000.0;
+        for (var i = 1; i <= 25; i++) {
+            gps += 3.0;
+            c.update(gps, 50.0);
+            Test.assert(c.courseDist < 7100.0);
+        }
+        Test.assert(c.mode == CourseTracker.MODE_OFF);
+        Test.assert(near(c.courseDist, 7075.0, 0.01));
+        gps += 3.0;
+        c.update(gps, 13900.0);   // watch back on lap 1: course 7100
+        Test.assert(c.mode == CourseTracker.MODE_COURSE);
+        Test.assert(near(c.courseDist, 7100.0, 0.01));
+        gps += 3.0;
+        c.update(gps, 13597.0);   // +303 m correction
+        Test.assert(near(c.courseDist, 7403.0, 0.01));
+        return true;
+    }
+
     // Loop course: the watch snaps to the finish (dtd 0) at the start line.
     // Pre-start preview keeps the largest value, so the length is right.
     (:test)
@@ -151,6 +211,25 @@ module CourseRunTests {
         c.update(0.0, 21097.5);
         c.update(500.0, 20600.0);
         Test.assert(near(c.courseDist, 497.5, 0.1));
+        return true;
+    }
+
+    // Preview saw the walk to the start line (course 8453 m + 16 m lead-in).
+    // The first reading after START drops it: distance starts at 0 and the
+    // finish reads the course length. A start 500 m into the course keeps it.
+    (:test)
+    function courseTrackerDropsLeadIn(logger as Logger) as Boolean {
+        var c = new CourseTracker();
+        c.preview(8469.0);
+        c.update(0.0, 8453.0);
+        Test.assert(near(c.courseDist, 0.0, 0.01));
+        Test.assert(near(c.lengthMeters(), 8453.0, 0.1));
+        c.update(8460.0, 0.0);
+        Test.assert(near(c.courseDist, 8453.0, 0.1));
+        var d = new CourseTracker();
+        d.preview(8453.0);
+        d.update(0.0, 7953.0);
+        Test.assert(near(d.courseDist, 500.0, 0.1));
         return true;
     }
 
@@ -310,6 +389,22 @@ module CourseRunTests {
         w.status = WorkoutTarget.STATUS_NONE;
         Test.assert(w.evaluate(5.0, null) == WorkoutTarget.STATUS_ON);
         Test.assert(w.evaluate(2.5, null) == WorkoutTarget.STATUS_SLOW);
+        return true;
+    }
+
+    // Firmware that hands speed targets over in m/s (today's FR965 run, the
+    // simulator): read as m/s, not divided down to a crawl that makes
+    // standing still read as SLOW DOWN.
+    (:test)
+    function workoutTargetPaceMps(logger as Logger) as Boolean {
+        var w = new WorkoutTarget();
+        w.setFrom(Activity.WORKOUT_STEP_TARGET_SPEED, 3.138, 3.416, null);
+        Test.assert(w.kind == WorkoutTarget.KIND_PACE);
+        Test.assert(near(w.low, 3.138, 0.0001));
+        Test.assert(near(w.high, 3.416, 0.0001));
+        Test.assert(w.evaluate(0.2, null) == WorkoutTarget.STATUS_SLOW);
+        w.setFrom(Activity.WORKOUT_STEP_TARGET_SPEED, 3, 4, null);   // whole m/s as Numbers
+        Test.assert(near(w.high, 4.0, 0.0001));
         return true;
     }
 
