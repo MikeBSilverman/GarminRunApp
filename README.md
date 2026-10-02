@@ -120,6 +120,21 @@ python scripts/check.py  # static checks only (what CI runs)
 python tools/replay.py run.fit [--course COURSE.fit]   # replay a recorded run through the logic
 ```
 
+### Design constraints
+
+Each one is checked by something that fails the build or CI, not just written down.
+
+| Constraint | Enforced by |
+|---|---|
+| Two permissions only (heart-rate zones, activity file); no network, raw GPS or background service | `scripts/check.py` (manifest allowlist, forbidden-API scan) |
+| No secrets or signing keys in the repo | `scripts/check.py`, gitleaks over full history in CI |
+| Every firmware-dependent, settings or storage call is guarded (`has` / `try`) | `scripts/check.py` |
+| Bad input never crashes or corrupts: nulls, NaN, timer resets, corrupt storage | hostile-input unit tests |
+| Memory fixed at start (two ring buffers), no growth over a run; fits 128 KB devices | heap-growth unit test, build for every target |
+| Battery: constant work once a second, nothing allocated in the steady state, storage written every 3 min and on stop | code review; `compute()` has no allocation |
+| Course distance never goes backwards and never takes an implausible leap | unit tests; `tools/replay.py` against real runs |
+| Readable on the round screen: band text within the bezel, fonts sized per screen | `tools/preview.sh` captures per device |
+
 Build commands, layout notes and the module map are in [CLAUDE.md](CLAUDE.md). Bug reports and pull requests are welcome.
 
 MIT licensed.

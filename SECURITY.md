@@ -28,4 +28,6 @@ Consequences:
 
 ## Reporting a problem
 
-Open a GitHub issue. If you believe you have found something that could affect other users' data, email the maintainer instead (address in the GitHub profile) and allow a few days for a reply before disclosing.
+Bugs: open a GitHub issue.
+
+Anything that could affect users' data or safety: report it privately through GitHub (**Security** tab > **Report a vulnerability**, or [this link](https://github.com/MikeBSilverman/GarminRunApp/security/advisories/new)) rather than in a public issue, and allow a few days for a reply before disclosing.
