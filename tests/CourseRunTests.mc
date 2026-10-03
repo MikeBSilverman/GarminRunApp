@@ -239,33 +239,37 @@ module CourseRunTests {
     function runStateDecode(logger as Logger) as Boolean {
         var r = new RunState();
         var snap = [10000.0, 3000.0, 1, 3000.0];
-        var ok = r.encode(1700000000, 60000, 30000, 1500.0, 45000, snap);
+        var ok = r.encode(1700000000, 60000, 30000, 1500.0, 45000, 2200.0, snap);
         Test.assert(r.decode(ok, 1700000000, 61000));
         Test.assert(r.timerMs == 60000 && r.lapStartMs == 30000 && r.stepStartMs == 45000);
         Test.assert(near(r.lapStartDist, 1500.0, 0.01));
+        Test.assert(near(r.stepStartDist, 2200.0, 0.01));
         Test.assert(new CourseTracker().restore(r.tracker));
 
         var bad = [
-            null, 7, "run", [], ok.slice(0, 6),
-            [2, 1700000000, 60000, 30000, 1500.0, 45000, snap],          // other format
-            [1, 1700000001, 60000, 30000, 1500.0, 45000, snap],          // other activity
-            [1, 1700000000, 99000, 30000, 1500.0, 45000, snap],          // ahead of the timer
-            [1, 1700000000, 0, 30000, 1500.0, 45000, snap],
-            [1, 1700000000, 60000.0, 30000, 1500.0, 45000, snap],        // wrong types
-            [1, 1700000000, 60000, "x", 1500.0, 45000, snap],
-            [1, 1700000000, 60000, 30000, null, 45000, snap],
-            [1, 1700000000, 60000, 30000, 1500.0, [1], snap]
+            null, 7, "run", [], ok.slice(0, 7),
+            [1, 1700000000, 60000, 30000, 1500.0, 45000, snap],          // v0.4.0 format
+            [3, 1700000000, 60000, 30000, 1500.0, 45000, 0.0, snap],     // other format
+            [2, 1700000001, 60000, 30000, 1500.0, 45000, 0.0, snap],     // other activity
+            [2, 1700000000, 99000, 30000, 1500.0, 45000, 0.0, snap],     // ahead of the timer
+            [2, 1700000000, 0, 30000, 1500.0, 45000, 0.0, snap],
+            [2, 1700000000, 60000.0, 30000, 1500.0, 45000, 0.0, snap],   // wrong types
+            [2, 1700000000, 60000, "x", 1500.0, 45000, 0.0, snap],
+            [2, 1700000000, 60000, 30000, null, 45000, 0.0, snap],
+            [2, 1700000000, 60000, 30000, 1500.0, 45000, "0", snap],
+            [2, 1700000000, 60000, 30000, 1500.0, [1], 0.0, snap]
         ];
         for (var i = 0; i < bad.size(); i++) {
             Test.assert(!new RunState().decode(bad[i], 1700000000, 61000));
         }
         // Marks outside [0, saved timer] are clamped, a NaN lap distance zeroed.
         var nan = Math.sqrt(-1.0);
-        Test.assert(r.decode([1, 1700000000, 60000, 90000, nan, -5, snap], 1700000000, 61000));
+        Test.assert(r.decode([2, 1700000000, 60000, 90000, nan, -5, nan, snap], 1700000000, 61000));
         Test.assert(r.lapStartMs == 60000 && r.stepStartMs == 0);
         Test.assert(near(r.lapStartDist, 0.0, 0.0001));
+        Test.assert(near(r.stepStartDist, 0.0, 0.0001));
         // A corrupt tracker part passes decode but not the tracker.
-        Test.assert(r.decode([1, 1700000000, 60000, 0, 0.0, 0, [nan, 1.0, 1, 0.0]], 1700000000, 61000));
+        Test.assert(r.decode([2, 1700000000, 60000, 0, 0.0, 0, 0.0, [nan, 1.0, 1, 0.0]], 1700000000, 61000));
         Test.assert(!new CourseTracker().restore(r.tracker));
         return true;
     }

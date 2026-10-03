@@ -8,7 +8,7 @@ Full-screen run data field (Monkey C, `type="datafield"`). Primary device: **fr9
 - `source/PaceBuffer.mc`: ring buffer of (timer ms, course m), 900 slots at 2 s. Rolling-distance pace and smoothed speed by binary search + interpolation.
 - `source/WorkoutTarget.mc`: parses `Activity.getCurrentWorkoutStep()`. Speed targets are mm/s, or m/s when < 100 (FR965 appears to hand m/s: v0.2.0 showed SLOW DOWN all workout) (low = slower, 0 = open bound); HR >100 = bpm+100, 1..5 with low==high = zone, else % max HR. Goal-pace fallback (`setGoal`) when no workout target. `evaluate()` has 1.5% hysteresis. Rest/warm-up steps: `isRest`/`stepLabel`.
 - `source/FitRecorder.mc`: FIT developer fields (course distance record/lap/session, course pace session, `band_status` record id 8 for replay). Two id sets: 0-3 miles, 4-7 km; labels in `resources/fit/fit_contributions.xml` (sortOrder must be unique across all fields).
-- `source/RunState.mc`: Resume Later state, `[VER, startSec, timerMs, lapMs, lapDist, stepMs, tracker.snapshot()]` in Application.Storage key "run"; `decode()` validates (format, same activity start, not ahead of the timer) and clamps.
+- `source/RunState.mc`: Resume Later state, `[VER=2, startSec, timerMs, lapMs, lapDist, stepMs, stepDist, tracker.snapshot()]` in Application.Storage key "run"; `decode()` validates (format, same activity start, not ahead of the timer) and clamps.
 - `source/Fmt.mc`, `source/Layout.mc`: formatting and percentage layout (ported/trimmed from `C:\Source\LiftApp\SRAGarmin`).
 - `tests/CourseRunTests.mc`: `(:test)` unit tests (behaviour, hostile inputs, heap-growth check). Stripped from normal builds.
 - `scripts/check.py`: static checks CI runs (permissions allowlist, no network/GPS APIs, no keys/secrets, XML + FIT ids, guarded firmware calls, LF endings). `scripts/test.sh` = checks + unit tests.
@@ -20,8 +20,8 @@ scripts/build.sh            # -> bin/CourseRun-<version>.prg (fr965 sideload) an
 ```
 Output files carry the manifest version (Mike's rule: always name builds by version). Bump `version=` in manifest.xml first; patch for fixes (0.2.1), minor for features. Under the hood:
 ```
-"$SDK/monkeyc.bat" -d fr965 -f monkey.jungle -o bin/CourseRun-0.4.0.prg -y developer_key.der -l 2 -w   # sideload
-"$SDK/monkeyc.bat" -e -o bin/CourseRun-0.4.0.iq -f monkey.jungle -y developer_key.der -l 2 -w           # all devices / store
+"$SDK/monkeyc.bat" -d fr965 -f monkey.jungle -o bin/CourseRun-0.4.1.prg -y developer_key.der -l 2 -w   # sideload
+"$SDK/monkeyc.bat" -e -o bin/CourseRun-0.4.1.iq -f monkey.jungle -y developer_key.der -l 2 -w           # all devices / store
 ```
 `developer_key.der` is the same key as Lift, copied locally and git-ignored.
 
@@ -41,6 +41,8 @@ In Git Bash, monkeydo needs `/t` (Windows style) and `MSYS2_ARG_CONV_EXCL='*'` s
 - No verdict (STATUS_NONE, recorded as such) while stopped, on rest/recovery steps, and for 30 s after the run starts or a workout step changes (`newStep()`); the band shows the target only.
 - Alerts: one per SLOW DOWN / SPEED UP episode, 15 s apart; `maybeAlert()` runs every running tick so an episode starting inside the gap alerts when it ends. Honours `vibrateOn`/`tonesOn`.
 - Resume Later: state saved every 3 min and on `onTimerStop`, cleared on `onTimerReset`; restored by the first compute of an instance created mid-activity (`_lastTimerMs < 0` with timer > 0), which is not treated as a running tick. Unverified on hardware whether the field is actually reloaded.
+- Workout band line 2: `AVG m:ss · range` (step average on course distance from `_stepStartDist`, after 100 m), else `label range`. Mike chose this (PacePro-style: verdict on the short window, average for the step) over ahead/behind or lap pace in row 2.
+- Course distance follows the course file: a square-cornered drawn route reads longer than GPS when corners are cut (run 3: +61 m, 1.4%). Not a bug; README explains.
 - Workout step polled every 15 ticks (`REFRESH_TICKS`); step callbacks cover transitions.
 - Monkey C NaN quirk: `NaN >= 0.0` is true (`<` is false, `NaN != NaN` true). Check stored floats with `x != x`; `0.0/0.0` throws at runtime, `Math.sqrt(-1.0)` gives NaN in tests.
 - Workout step changes call `onWorkoutStepComplete` but not `onTimerLap`, so the step callback restarts the lap too.

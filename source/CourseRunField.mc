@@ -60,8 +60,10 @@ class CourseRunField extends WatchUi.DataField {
     hidden var _paceUnit as Float = Fmt.M_PER_MI;
     hidden var _screenH as Number = 454;
 
-    // Start of the current workout step (or of the run), for the settle period
+    // Start of the current workout step (or of the run): settle period and
+    // the step's average pace in the band
     hidden var _stepStartMs as Number = 0;
+    hidden var _stepStartDist as Float = 0.0;
 
     // Resume Later persistence
     hidden var _startSec as Number or Null = null;   // activity start, identifies it
@@ -154,6 +156,7 @@ class CourseRunField extends WatchUi.DataField {
         _lastTimerMs = -1;
         _running = false;
         _stepStartMs = 0;
+        _stepStartDist = 0.0;
         _lapStartMs = 0;
         _lapStartDist = 0.0;
         _lastSplitIdx = 0;
@@ -191,6 +194,7 @@ class CourseRunField extends WatchUi.DataField {
     // reflect the new effort before judging it.
     hidden function newStep() as Void {
         _stepStartMs = _timerMs;
+        _stepStartDist = _tracker.courseDist;
         _target.status = WorkoutTarget.STATUS_NONE;
     }
 
@@ -263,7 +267,7 @@ class CourseRunField extends WatchUi.DataField {
         }
         _lastSaveMs = _timerMs;
         var state = new RunState().encode(_startSec as Number, _timerMs, _lapStartMs, _lapStartDist,
-                                          _stepStartMs, _tracker.snapshot());
+                                          _stepStartMs, _stepStartDist, _tracker.snapshot());
         try {
             Application.Storage.setValue(STATE_KEY, state as Array<Application.Storage.ValueType>);
         } catch (e) {
@@ -300,6 +304,7 @@ class CourseRunField extends WatchUi.DataField {
         _lapStartMs = rs.lapStartMs;
         _lapStartDist = rs.lapStartDist <= cd ? rs.lapStartDist : cd;
         _stepStartMs = rs.stepStartMs;
+        _stepStartDist = rs.stepStartDist <= cd ? rs.stepStartDist : cd;
         _lastSplitIdx = (cd / _paceUnit).toNumber();
         _fit.onLap(_lapStartDist);
         _gpsDist = _tracker.lastGps();
@@ -459,6 +464,17 @@ class CourseRunField extends WatchUi.DataField {
             return _target.low.toNumber().toString() + "-" + _target.high.toNumber().toString() + " BPM";
         }
         return "";
+    }
+
+    // "AVG 8:41 · " for the current workout step, once it has 100 m of
+    // course distance; empty before that (and for HR targets).
+    hidden function stepAvgText() as String {
+        var d = _tracker.courseDist - _stepStartDist;
+        var t = _timerMs - _stepStartMs;
+        if (_target.kind != WorkoutTarget.KIND_PACE || d < 100.0 || t <= 0) {
+            return "";
+        }
+        return "AVG " + Fmt.pace(t / 1000.0 / d * _paceUnit) + " · ";
     }
 
     hidden function goalLine() as String {
@@ -628,8 +644,11 @@ class CourseRunField extends WatchUi.DataField {
             if (_target.source == WorkoutTarget.SOURCE_GOAL) {
                 line2 = goalLine();
             } else {
+                // The verdict is the last 30 s; the step's average says how
+                // the step as a whole is going (lap pace, in effect).
+                var avg = stepAvgText();
                 var lbl = _target.stepLabel;
-                line2 = (lbl.length() > 0 ? lbl + " " : "") + rangeText();
+                line2 = (avg.length() > 0 ? avg : (lbl.length() > 0 ? lbl + " " : "")) + rangeText();
             }
         }
 

@@ -25,7 +25,7 @@ Race courses are measured along the shortest legal line and nobody runs it. GPS 
 | **ON PACE / SLOW DOWN / SPEED UP** | Green, red, blue. Compares your pace over the last 30 s (a setting) with the current workout step's target, or with your goal pace when no workout target is active. The pace comes from GPS speed scaled to the course, which is steadier than course distance second to second. |
 | **TARGET 7:51-8:33** (grey) | The first 30 s of the run and of each workout step: no verdict yet while you settle into the new pace. |
 | **AHEAD 0:09 / BEHIND 0:12** | Goal-pace mode: seconds ahead of or behind your goal at this point in the course. |
-| **RUN 8:44-9:09** | Workout mode: the step name and its pace range, fastest first. |
+| **AVG 8:41 · 7:51-8:33** | Workout mode: this step's average pace so far, then the step's target range, fastest first. The band colour judges the last 30 s (so you know what to do now); the average says how the step as a whole is going. Shows the step name instead until 100 m into the step. |
 | **HR OK / HR HIGH / HR LOW** | The step has a heart-rate target instead of pace. |
 | **REST / RECOVERY** | Rest steps: no verdict and no alerts, whatever their target. |
 | **WARM UP / COOL DOWN** | Step names, shown with the step's target if it has one. |
@@ -70,6 +70,7 @@ Getting the course onto the watch: most races publish a GPX. Import it in Garmin
 | **CHECK LENGTH** before Start | Wrong course loaded, or the **Race distance** setting is left over from a previous race. Fix whichever is wrong. |
 | **GPS MI** after Start | The course wasn't loaded. Load it now (same menu); CourseRun picks it up mid-run. |
 | **OFF COURSE MI** | You've left the route or the watch locked onto the wrong part of a loop. Get back on the route; it recovers by itself. |
+| Course distance reads *more* than the watch | The number is how far along the course file you are, not how far your feet went. A hand-drawn route with square corners is longer than the line you run through them, so cutting a corner moves you forward along the course for free. On a certified race course the opposite happens (the course is the shortest line) and the **Race distance** setting lines the two up. |
 | A bare number on a coloured block | The field is in a 2- or 4-field layout. Use the 1-field layout. |
 | Band says **NO HR** | The step has a heart-rate target but no heart rate is available. Check the strap or wrist sensor. |
 | Band stays grey with **NO GOAL SET** | No workout target and no goal pace. Set one in settings, or load a workout. |
