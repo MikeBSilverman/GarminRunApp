@@ -20,8 +20,8 @@ scripts/build.sh            # -> bin/CourseRun-<version>.prg (fr965 sideload) an
 ```
 Output files carry the manifest version (Mike's rule: always name builds by version). Bump `version=` in manifest.xml first; patch for fixes (0.2.1), minor for features. Under the hood:
 ```
-"$SDK/monkeyc.bat" -d fr965 -f monkey.jungle -o bin/CourseRun-0.4.2.prg -y developer_key.der -l 2 -w   # sideload
-"$SDK/monkeyc.bat" -e -o bin/CourseRun-0.4.2.iq -f monkey.jungle -y developer_key.der -l 2 -w           # all devices / store
+"$SDK/monkeyc.bat" -d fr965 -f monkey.jungle -o bin/CourseRun-0.4.3.prg -y developer_key.der -l 2 -w   # sideload
+"$SDK/monkeyc.bat" -e -o bin/CourseRun-0.4.3.iq -f monkey.jungle -y developer_key.der -l 2 -w           # all devices / store
 ```
 `developer_key.der` is the same key as Lift, copied locally and git-ignored.
 
