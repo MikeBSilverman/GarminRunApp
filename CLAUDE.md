@@ -20,8 +20,8 @@ scripts/build.sh            # -> bin/CourseRun-<version>.prg (fr965 sideload) an
 ```
 Output files carry the manifest version (Mike's rule: always name builds by version). Bump `version=` in manifest.xml first; patch for fixes (0.2.1), minor for features. Under the hood:
 ```
-"$SDK/monkeyc.bat" -d fr965 -f monkey.jungle -o bin/CourseRun-0.4.1.prg -y developer_key.der -l 2 -w   # sideload
-"$SDK/monkeyc.bat" -e -o bin/CourseRun-0.4.1.iq -f monkey.jungle -y developer_key.der -l 2 -w           # all devices / store
+"$SDK/monkeyc.bat" -d fr965 -f monkey.jungle -o bin/CourseRun-0.4.2.prg -y developer_key.der -l 2 -w   # sideload
+"$SDK/monkeyc.bat" -e -o bin/CourseRun-0.4.2.iq -f monkey.jungle -y developer_key.der -l 2 -w           # all devices / store
 ```
 `developer_key.der` is the same key as Lift, copied locally and git-ignored.
 
@@ -39,7 +39,8 @@ In Git Bash, monkeydo needs `/t` (Windows style) and `MSYS2_ARG_CONV_EXCL='*'` s
 - Split flash overrides the hero label for 6 s at each course mile/km.
 - Band speed (`currentSpeed()`) is GPS distance over the smoothing window x the run's course/GPS ratio (clamped 0.95-1.05), from a 64-slot GPS PaceBuffer. Course distance projected onto a route is too jumpy for the instant verdict (2.7% sd at 30 s on a real FR965 run); it drives totals, splits and goal gap.
 - No verdict (STATUS_NONE, recorded as such) while stopped, on rest/recovery steps, and for 30 s after the run starts or a workout step changes (`newStep()`); the band shows the target only.
-- Alerts: one per SLOW DOWN / SPEED UP episode, 15 s apart; `maybeAlert()` runs every running tick so an episode starting inside the gap alerts when it ends. Honours `vibrateOn`/`tonesOn`.
+- Stops with the timer running: `info.currentSpeed` under `WorkoutTarget.stopSpeed()` (65% of the slow pace bound, else 1.6 m/s) for 3 s => no verdict, until the stop has left the smoothing window (`_stopMs`). Run of 2026-10-08 (goal 9:20, 9 lights/walks): SPEED UP at every light and 30 s after.
+- Alerts: one per SLOW DOWN / SPEED UP episode, once the verdict has held 10 s (`ALERT_HOLD_MS`), 15 s apart; `maybeAlert()` runs every running tick so an episode starting inside the gap alerts when it ends. Honours `vibrateOn`/`tonesOn`.
 - Resume Later: state saved every 3 min and on `onTimerStop`, cleared on `onTimerReset`; restored by the first compute of an instance created mid-activity (`_lastTimerMs < 0` with timer > 0), which is not treated as a running tick. Unverified on hardware whether the field is actually reloaded.
 - Workout band line 2: `AVG m:ss · range` (step average on course distance from `_stepStartDist`, after 100 m), else `label range`. Mike chose this (PacePro-style: verdict on the short window, average for the step) over ahead/behind or lap pace in row 2.
 - Course distance follows the course file: a square-cornered drawn route reads longer than GPS when corners are cut (run 3: +61 m, 1.4%). Not a bug; README explains.

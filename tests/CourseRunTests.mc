@@ -468,6 +468,21 @@ module CourseRunTests {
         return true;
     }
 
+    // Stop speed: 65% of the slow bound, else a brisk walk (open slow bound,
+    // HR target, no target).
+    (:test)
+    function workoutTargetStopSpeed(logger as Logger) as Boolean {
+        var w = new WorkoutTarget();
+        Test.assert(near(w.stopSpeed(), 1.6, 0.0001));
+        w.setFrom(Activity.WORKOUT_STEP_TARGET_SPEED, 2800, 3000, null);
+        Test.assert(near(w.stopSpeed(), 1.82, 0.0001));
+        w.setFrom(Activity.WORKOUT_STEP_TARGET_SPEED, 0, 3000, null);
+        Test.assert(near(w.stopSpeed(), 1.6, 0.0001));
+        w.setFrom(Activity.WORKOUT_STEP_TARGET_HEART_RATE, 240, 260, null);
+        Test.assert(near(w.stopSpeed(), 1.6, 0.0001));
+        return true;
+    }
+
     // Firmware that hands speed targets over in m/s (today's FR965 run, the
     // simulator): read as m/s, not divided down to a crawl that makes
     // standing still read as SLOW DOWN.

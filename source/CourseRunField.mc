@@ -28,6 +28,8 @@ class CourseRunField extends WatchUi.DataField {
     hidden const GPS_SLOTS = 64;       // 128 s at 2 s: covers the 120 s smoothing max
     hidden const SPLIT_FLASH_MS = 6000;
     hidden const ALERT_GAP_MS = 15000;
+    hidden const ALERT_HOLD_MS = 10000;   // a verdict must last this long before it buzzes
+    hidden const STOP_TICKS = 3;          // seconds below the stop speed that make a stop
     hidden const SETTLE_MS = 30000;    // no pace verdict for this long after a step starts
     hidden const STATE_KEY = "run";
     hidden const SAVE_EVERY_MS = 180000;   // Resume Later always stops the timer, which saves
@@ -81,6 +83,11 @@ class CourseRunField extends WatchUi.DataField {
     // Alerts
     hidden var _lastAlertStatus as Number = 0;
     hidden var _lastAlertMs as Number = -100000;
+    hidden var _statusSinceMs as Number = 0;   // when the band's verdict last changed
+
+    // Stops (traffic lights, walk breaks) with the timer running
+    hidden var _slowTicks as Number = 0;
+    hidden var _stopMs as Number = -1000000;   // last running tick spent stopped
 
     function initialize() {
         DataField.initialize();
@@ -164,6 +171,9 @@ class CourseRunField extends WatchUi.DataField {
         _lastSaveMs = 0;
         _lastAlertStatus = WorkoutTarget.STATUS_NONE;
         _lastAlertMs = -100000;
+        _statusSinceMs = 0;
+        _slowTicks = 0;
+        _stopMs = -1000000;
         clearState();
     }
 
@@ -228,6 +238,7 @@ class CourseRunField extends WatchUi.DataField {
             _buf.add(_timerMs, _tracker.courseDist);
             _gpsBuf.add(_timerMs, _gpsDist);
             _fit.update(_tracker.courseDist, _timerMs);
+            trackStop(info.currentSpeed);
             checkSplit();
             if (_timerMs - _lastSaveMs >= SAVE_EVERY_MS) {
                 saveState();
@@ -245,17 +256,39 @@ class CourseRunField extends WatchUi.DataField {
         }
 
         var status;
-        if (!_running || _target.isRest || _timerMs - _stepStartMs < SETTLE_MS) {
-            // Stopped, a rest step, or settling into the step (or the start
-            // of the run): no verdict; the band shows the target or step.
+        var was = _target.status;
+        if (!_running || _target.isRest || _timerMs - _stepStartMs < SETTLE_MS
+            || _timerMs - _stopMs < _smoothMs) {
+            // Paused, a rest step, settling into the step (or the start of
+            // the run), or stopped with the timer running and until the stop
+            // has left the smoothing window: no verdict; the band shows the
+            // target or step.
             _target.status = WorkoutTarget.STATUS_NONE;
             status = _target.status;
         } else {
             status = _target.evaluate(currentSpeed(), _hr);
         }
+        if (status != was) {
+            _statusSinceMs = _timerMs;
+        }
         if (_running) {
             _fit.setBand(status);
             maybeAlert(status);
+        }
+    }
+
+    // A stop with the timer running (a light, a walk break): the watch's
+    // instant speed under WorkoutTarget.stopSpeed() for STOP_TICKS seconds.
+    // Without this the band said SPEED UP at every light and for 30 s after,
+    // while the stop was still in the smoothed speed.
+    hidden function trackStop(speed as Float or Null) as Void {
+        if (speed != null && speed < _target.stopSpeed()) {
+            _slowTicks++;
+            if (_slowTicks >= STOP_TICKS) {
+                _stopMs = _timerMs;
+            }
+        } else {
+            _slowTicks = 0;
         }
     }
 
@@ -346,9 +379,10 @@ class CourseRunField extends WatchUi.DataField {
         _lastSplitIdx = idx;
     }
 
-    // One alert per SLOW DOWN / SPEED UP episode, at most every ALERT_GAP_MS;
-    // an episode that starts inside the gap alerts when the gap ends. Called
-    // every running tick. Follows the watch's vibration and tone settings.
+    // One alert per SLOW DOWN / SPEED UP episode, once it has lasted
+    // ALERT_HOLD_MS (slowing for a light, a brief surge), at most every
+    // ALERT_GAP_MS; an episode that starts inside the gap alerts when the gap
+    // ends. Called every running tick. Follows the watch's vibration and tone settings.
     hidden function maybeAlert(status as Number) as Void {
         var goal = _target.source == WorkoutTarget.SOURCE_GOAL;
         if (_alerts == 0 || (_alerts == 1 && !goal)) {
@@ -358,7 +392,8 @@ class CourseRunField extends WatchUi.DataField {
             _lastAlertStatus = status;
             return;
         }
-        if (status == _lastAlertStatus || _timerMs - _lastAlertMs < ALERT_GAP_MS) {
+        if (status == _lastAlertStatus || _timerMs - _lastAlertMs < ALERT_GAP_MS
+            || _timerMs - _statusSinceMs < ALERT_HOLD_MS) {
             return;
         }
         _lastAlertStatus = status;

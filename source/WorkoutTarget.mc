@@ -40,6 +40,8 @@ class WorkoutTarget {
     hidden const OPEN_HIGH = 99.0;   // m/s; "no fast limit"
     hidden const MMPS_MIN = 100.0;   // speed values at or above this are mm/s
     hidden const HYST = 0.015;       // 1.5% dead band before status changes
+    hidden const STOP_FRACTION = 0.65;   // of the slow bound: below this you've stopped or walk
+    hidden const STOP_SPEED = 1.6;       // m/s (16:46/mi) when there is no slow pace bound
 
     var kind as Number = KIND_NONE;
     var source as Number = SOURCE_NONE;
@@ -207,6 +209,13 @@ class WorkoutTarget {
     // m/s from a speed target value in mm/s or m/s (see the class comment).
     hidden function speedValue(v as Float) as Float {
         return v >= MMPS_MIN ? v / 1000.0 : v;
+    }
+
+    // Instant speed (m/s) under which the runner counts as stopped or
+    // walking: 65% of the slow pace bound, or a brisk walk when there is none
+    // (open bound, HR target, no target).
+    function stopSpeed() as Float {
+        return kind == KIND_PACE && low > 0.0 ? low * STOP_FRACTION : STOP_SPEED;
     }
 
     function openLow() as Boolean {

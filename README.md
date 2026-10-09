@@ -23,7 +23,7 @@ Race courses are measured along the shortest legal line and nobody runs it. GPS 
 | **NO COURSE** (before Start) | No course loaded. Hold UP > Navigation > Courses. Orange. Everything still works, using GPS distance. |
 | **CHECK LENGTH** (before Start) | The loaded course is more than 5% off the race distance you set. Wrong course, or the setting was left on after a race. Orange. |
 | **ON PACE / SLOW DOWN / SPEED UP** | Green, red, blue. Compares your pace over the last 30 s (a setting) with the current workout step's target, or with your goal pace when no workout target is active. The pace comes from GPS speed scaled to the course, which is steadier than course distance second to second. |
-| **TARGET 7:51-8:33** (grey) | The first 30 s of the run and of each workout step: no verdict yet while you settle into the new pace. |
+| **TARGET 7:51-8:33** (grey) | The first 30 s of the run and of each workout step: no verdict yet while you settle into the new pace. Also while you're stopped or walking with the timer running (a light, a walk break), and for 30 s after you set off again, so the stop doesn't read as SPEED UP. |
 | **AHEAD 0:09 / BEHIND 0:12** | Goal-pace mode: seconds ahead of or behind your goal at this point in the course. |
 | **AVG 8:41 · 7:51-8:33** | Workout mode: this step's average pace so far, then the step's target range, fastest first. The band colour judges the last 30 s (so you know what to do now); the average says how the step as a whole is going. Shows the step name instead until 100 m into the step. |
 | **HR OK / HR HIGH / HR LOW** | The step has a heart-rate target instead of pace. |
@@ -79,9 +79,9 @@ Getting the course onto the watch: most races publish a GPX. Import it in Garmin
 
 | Setting | Meaning |
 |---|---|
-| **Goal pace** | e.g. `9:00`, in your watch's pace units. Used when no workout target is active. Blank = off. |
+| **Goal pace** | For runs without a workout. Minutes:seconds per mile (per km if the watch shows metric pace), e.g. `9:20`. Used when no workout target is active. Blank = off. |
 | **Goal pace leeway** | Seconds per mile/km that still count as on pace. Default 10. |
-| **Vibrate when you drift off pace** | Off / goal pace only (default) / always. Workouts already alert on their own. At most one buzz per 15 s. |
+| **Vibrate when you drift off pace** | Off / goal pace only (default) / always. Workouts already alert on their own. Buzzes once the verdict has held 10 s, at most once per 15 s. |
 | **Race distance** | e.g. `13.11` (miles) or `21.1` (km). The finish then reads exactly this even if the course file measures a little long or short. Only applies when the loaded course is within 5% of it. **Set back to 0 after the race.** |
 | **Big number shows** | Distance run (default) or distance to go. |
 | **Right-hand pace** | Last mile or km (watch units, default), last mile, last km, or lap pace on course distance. |

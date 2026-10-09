@@ -53,6 +53,8 @@ STEP_LABEL = {"rest": "REST", "recovery": "RECOVERY", "warmup": "WARM UP", "cool
 
 SETTLE_MS = 30000          # CourseRunField.SETTLE_MS
 ALERT_GAP_MS = 15000       # CourseRunField.ALERT_GAP_MS
+ALERT_HOLD_MS = 10000      # CourseRunField.ALERT_HOLD_MS
+STOP_TICKS = 3             # CourseRunField.STOP_TICKS
 
 
 # ---- ports of the Monkey C models -------------------------------------------
@@ -103,6 +105,8 @@ class WorkoutTarget:
     OPEN_HIGH = 99.0
     MMPS_MIN = 100.0
     HYST = 0.015
+    STOP_FRACTION = 0.65
+    STOP_SPEED = 1.6
 
     def __init__(self):
         self.kind = None          # "pace" / "hr" / None
@@ -178,6 +182,9 @@ class WorkoutTarget:
                 return   # zone targets: not replayed (see the module docstring)
             self.low, self.high = min(self.low, self.high), max(self.low, self.high)
             self.kind = "hr"
+
+    def stop_speed(self):
+        return self.low * self.STOP_FRACTION if self.kind == "pace" and self.low > 0 else self.STOP_SPEED
 
     def evaluate(self, speed, hr):
         v = speed if self.kind == "pace" else (hr if self.kind == "hr" else None)
@@ -603,7 +610,7 @@ def simulate_course(run, course_pts, official_m, unit, unit_name):
 
 def replay_band(run, dist, modes, a, unit):
     """CourseRunField.compute() per record: step changes, settle, rest,
-    evaluate on currentSpeed(), maybeAlert(). Returns (segments, timeline);
+    stops, evaluate on currentSpeed(), maybeAlert(). Returns (segments, timeline);
     segments are workout steps, or laps when there is no workout."""
     tgt = WorkoutTarget()
     tgt.set_goal(parse_pace(a.goal) if a.goal else 0.0, unit, a.tol)
@@ -615,6 +622,7 @@ def replay_band(run, dist, modes, a, unit):
     cur_step, seg_key = object(), object()   # sentinels: differ from any value
     step_start, last_t = 0, -1
     last_alert_status, last_alert_ms = NONE, -100000
+    status_since, slow_ticks, stop_ms = 0, 0, -1000000
 
     for i, r in enumerate(run.records):
         t_ms = int(round(run.timer[i] * 1000))
@@ -638,8 +646,15 @@ def replay_band(run, dist, modes, a, unit):
 
         if running:
             gps_buf.add(t_ms, g)
+            # trackStop(): the watch's instant speed is enhanced_speed.
+            inst = r.get("enhanced_speed")
+            slow_ticks = slow_ticks + 1 if inst is not None and inst < tgt.stop_speed() else 0
+            if slow_ticks >= STOP_TICKS:
+                stop_ms = t_ms
         speed = None
-        if not running or tgt.rest or t_ms - step_start < SETTLE_MS:
+        was = tgt.status
+        if (not running or tgt.rest or t_ms - step_start < SETTLE_MS
+                or t_ms - stop_ms < a.smooth * 1000):
             tgt.status = status = NONE
         else:
             # currentSpeed(): GPS rate x the run's course/GPS ratio while on course.
@@ -647,6 +662,8 @@ def replay_band(run, dist, modes, a, unit):
             if speed is not None and g > 1000.0 and modes[i] == CourseTracker.COURSE:
                 speed *= min(1.05, max(0.95, d / g))
             status = tgt.evaluate(speed, r.get("heart_rate"))
+        if status != was:
+            status_since = t_ms
 
         s = segs[-1]
         s["count"][status] += 1
@@ -657,7 +674,8 @@ def replay_band(run, dist, modes, a, unit):
         if running and not (alerts == 0 or (alerts == 1 and tgt.source != "goal")):
             if status not in (FAST, SLOW):
                 last_alert_status = status
-            elif status != last_alert_status and t_ms - last_alert_ms >= ALERT_GAP_MS:
+            elif (status != last_alert_status and t_ms - last_alert_ms >= ALERT_GAP_MS
+                  and t_ms - status_since >= ALERT_HOLD_MS):
                 s["alerts"] += 1
                 last_alert_status, last_alert_ms = status, t_ms
 
