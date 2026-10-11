@@ -47,6 +47,7 @@ In Git Bash, monkeydo needs `/t` (Windows style) and `MSYS2_ARG_CONV_EXCL='*'` s
 - Workout step polled every 15 ticks (`REFRESH_TICKS`); step callbacks cover transitions.
 - Monkey C NaN quirk: `NaN >= 0.0` is true (`<` is false, `NaN != NaN` true). Check stored floats with `x != x`; `0.0/0.0` throws at runtime, `Math.sqrt(-1.0)` gives NaN in tests.
 - Workout step changes call `onWorkoutStepComplete` but not `onTimerLap`, so the step callback restarts the lap too.
+- Treadmill profile (`Activity.getProfileInfo().subSport == SUB_SPORT_TREADMILL`, read once in `initialize`): band says TREADMILL before START instead of NO COURSE, hero label TREADMILL MI instead of GPS MI.
 - HR goal band line 2 is the range (`UNDER 145 BPM` for a ceiling), not AHEAD/BEHIND.
 - `tools/replay.py run.fit [--course COURSE.fit] [--goal-hr 145 [--hr-zones ...]]` replays a FIT file through Python ports of the models (CourseTracker too, with a course); update it with logic changes.
 

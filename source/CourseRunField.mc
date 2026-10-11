@@ -14,7 +14,8 @@ import Toybox.WatchUi;
 //         course avg pace     |   last mile / last km / lap pace
 //              time           |   heart rate
 //
-// Before START the band reports whether a course is loaded ("COURSE READY").
+// Before START the band reports whether a course is loaded ("COURSE READY"),
+// or TREADMILL in the Treadmill profile, where there is none.
 // Designed for a 1-field data screen; in a smaller slot it draws a compact
 // version (course distance on the status colour with a label).
 //
@@ -62,6 +63,7 @@ class CourseRunField extends WatchUi.DataField {
     hidden var _distUnit as Float = Fmt.M_PER_MI;
     hidden var _paceUnit as Float = Fmt.M_PER_MI;
     hidden var _screenH as Number = 454;
+    hidden var _treadmill as Boolean = false;   // Treadmill profile: no course, wrist distance
 
     // Start of the current workout step (or of the run): settle period and
     // the step's average pace in the band
@@ -96,6 +98,7 @@ class CourseRunField extends WatchUi.DataField {
         _buf = new PaceBuffer(BUFFER_SLOTS, SAMPLE_MS);
         _gpsBuf = new PaceBuffer(GPS_SLOTS, SAMPLE_MS);
         _target = new WorkoutTarget();
+        _treadmill = isTreadmill();
         cacheDeviceSettings();
         _fit = new FitRecorder(self, _distUnit);
         loadSettings();
@@ -135,6 +138,18 @@ class CourseRunField extends WatchUi.DataField {
             // A new goal mid-run: judge it afresh, after the settle period.
             newStep();
         }
+    }
+
+    // The activity profile is fixed for the field's life, so this is read once.
+    hidden function isTreadmill() as Boolean {
+        if (Activity has :getProfileInfo) {
+            try {
+                var p = Activity.getProfileInfo();
+                return p != null && p.subSport == Activity.SUB_SPORT_TREADMILL;
+            } catch (e) {
+            }
+        }
+        return false;
     }
 
     hidden function readFloat(key as String, dflt as Float) as Float {
@@ -590,7 +605,7 @@ class CourseRunField extends WatchUi.DataField {
                 label = "OFF COURSE" + unit;
                 labelColor = Graphics.COLOR_ORANGE;
             } else {
-                label = "GPS" + unit;
+                label = (_treadmill ? "TREADMILL" : "GPS") + unit;
             }
             var fin = projectedFinishMs();
             if (fin != null) {
@@ -660,7 +675,11 @@ class CourseRunField extends WatchUi.DataField {
 
         if (_timerMs == 0) {
             // Before START: is the course loaded?
-            if (!_tracker.hasCourse()) {
+            if (!_tracker.hasCourse() && _treadmill) {
+                // Indoors there is no course to load; distance is the watch's.
+                line1 = "TREADMILL";
+                textColor = Graphics.COLOR_DK_GREEN;
+            } else if (!_tracker.hasCourse()) {
                 line1 = "NO COURSE";
                 line2 = "NAVIGATION > COURSES";
                 textColor = Graphics.COLOR_ORANGE;
@@ -727,14 +746,14 @@ class CourseRunField extends WatchUi.DataField {
         var unit = _distUnit == Fmt.M_PER_MI ? " MI" : " KM";
         var label;
         if (_timerMs == 0) {
-            label = _tracker.hasCourse() ? "COURSE READY" : "NO COURSE";
+            label = _tracker.hasCourse() ? "COURSE READY" : (_treadmill ? "TREADMILL" : "NO COURSE");
         } else if (_tracker.mode == CourseTracker.MODE_COURSE) {
             label = "COURSE" + unit;
         } else if (_tracker.mode == CourseTracker.MODE_OFF) {
             label = "OFF COURSE" + unit;
             labelColor = Graphics.COLOR_ORANGE;
         } else {
-            label = "GPS" + unit;
+            label = (_treadmill ? "TREADMILL" : "GPS") + unit;
         }
         var cx = w / 2;
         var vc = Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER;

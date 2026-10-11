@@ -32,6 +32,7 @@ Race courses are measured along the shortest legal line and nobody runs it. GPS 
 | **NO GOAL SET** | No workout target and no goal pace or goal heart rate in settings. The band is simply off. |
 | **COURSE MI** | The big number is distance along the course. |
 | **GPS MI** | No course. The big number is plain GPS distance. |
+| **TREADMILL / TREADMILL MI** | Treadmill activity: no course, so the big number is the watch's own distance (wrist or footpod). Goal pace judges the watch's pace, which is only as good as its treadmill calibration; goal heart rate works as well as outdoors. |
 | **OFF COURSE MI** (orange) | The course stopped advancing while you kept moving. Distance is being added from GPS until you rejoin. |
 | **TO GO MI** | Setting "Big number shows: Distance to go". Run plus to-go always equals the course length. |
 | **FIN 1:57:35** | Projected finish time, from remaining course distance and a blend of your average and recent pace. |

@@ -1,7 +1,8 @@
 """Build a scratch copy of the app with seeded values for one screen state.
 
 Usage: python tools/mkpreview.py <scenario> [dark]
-Scenarios: prestart | goal | workout | rest | split | mismatch | offcourse | togo | compact
+Scenarios: prestart | goal | hrgoal | workout | rest | split | mismatch | offcourse | togo | compact
+           | treadpre | treadmill
 Output: bin/preview/ (a full project copy with CourseRunField.mc patched)."""
 import sys, shutil, os
 
@@ -30,6 +31,23 @@ seeds = {
     "prestart": '''
         _tracker.preview(21140.0);
         _timerMs = 0;
+''',
+    "hrgoal": common + '''
+        _target.setGoal(540.0, Fmt.M_PER_MI, 10.0);
+        _target.setGoalHr("145");
+        _target.evaluate(2.9, 152);
+''',
+    "treadpre": '''
+        _treadmill = true;
+        _timerMs = 0;
+''',
+    "treadmill": '''
+        _treadmill = true;
+        for (var i = 1; i <= 600; i++) { _buf.add(i * 2000, i * 5.98); }
+        _tracker.update(0.0, null); _tracker.update(3590.0, null);
+        _timerMs = 1200000; _lastTimerMs = 1200000; _hr = 138; _running = true;
+        _target.setGoalHr("145");
+        _target.evaluate(2.9, 138);
 ''',
     "goal": common + '''
         _target.setGoal(540.0, Fmt.M_PER_MI, 10.0);
@@ -70,8 +88,8 @@ seeds = {
         _screenH = 2000;
 ''',
 }
-seed = "        _target.refresh();\n        // PREVIEW SEED" + seeds[scenario]
-s = s.replace("        _target.refresh();\n    }\n\n    hidden function cacheDeviceSettings", seed + "    }\n\n    hidden function cacheDeviceSettings", 1)
+seed = "        loadSettings();\n        // PREVIEW SEED" + seeds[scenario]
+s = s.replace("        loadSettings();\n    }\n\n    hidden function cacheDeviceSettings", seed + "    }\n\n    hidden function cacheDeviceSettings", 1)
 assert "PREVIEW SEED" in s
 # freeze compute and periodic refresh
 s = s.replace("        var timer = info.timerTime;", "        if (true) { return; }\n        var timer = info.timerTime;", 1)
