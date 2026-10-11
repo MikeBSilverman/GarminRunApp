@@ -4,9 +4,11 @@
     <string id="GoalPacePrompt">Minutes:seconds per mile, or per km if your watch shows metric pace. 9:20 = 9 min 20 s per mile. Drives the ON PACE band, AHEAD/BEHIND and alerts when no workout target is active. Leave blank for none.</string>
     <string id="GoalTolTitle">Goal pace leeway (seconds)</string>
     <string id="GoalTolPrompt">How far from the goal pace still counts as ON PACE. Default 10 seconds per mile/km.</string>
-    <string id="AlertsTitle">Vibrate when you drift off pace</string>
+    <string id="GoalHrTitle">Goal heart rate instead of pace (e.g. 2 or 130-145)</string>
+    <string id="GoalHrPrompt">For easy and recovery runs without a workout. 2 = your heart rate zone 2 (from the watch's running zones), 1-2 = zones 1 to 2, 130-145 = a range in bpm, 145 = only warn above 145. When set, the band says HR OK / HR HIGH / HR LOW instead of judging pace, even if a goal pace is set. Leave blank to use the goal pace.</string>
+    <string id="AlertsTitle">Vibrate when you drift off pace or heart rate</string>
     <string id="AlertsOff">Off</string>
-    <string id="AlertsGoal">Goal pace only (workouts alert on their own)</string>
+    <string id="AlertsGoal">Goals only (workouts alert on their own)</string>
     <string id="AlertsAlways">Always</string>
     <string id="CourseLengthTitle">Race distance (leave 0 for training)</string>
     <string id="CourseLengthPrompt">Official race distance in your watch's distance units, e.g. 13.11 for a half marathon in miles or 21.1 in km. The finish then reads exactly this even if the course file measures a little long or short. Only applies when the loaded course is within 5% of it. Set back to 0 after the race.</string>

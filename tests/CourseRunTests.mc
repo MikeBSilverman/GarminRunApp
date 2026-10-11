@@ -562,6 +562,49 @@ module CourseRunTests {
         return true;
     }
 
+    // Goal heart rate setting: zone, zone range, bpm range, ceiling.
+    (:test)
+    function workoutTargetGoalHrParse(logger as Logger) as Boolean {
+        var w = new WorkoutTarget();
+        var zones = [100, 120, 140, 155, 170, 190] as Array<Number>;
+        var r = w.parseHr("2", zones) as Array<Float>;
+        Test.assert(near(r[0], 120.0, 0.01) && near(r[1], 140.0, 0.01));
+        r = w.parseHr(" 1-2 ", zones) as Array<Float>;
+        Test.assert(near(r[0], 100.0, 0.01) && near(r[1], 140.0, 0.01));
+        r = w.parseHr("145-130", null) as Array<Float>;
+        Test.assert(near(r[0], 130.0, 0.01) && near(r[1], 145.0, 0.01));
+        r = w.parseHr("145", null) as Array<Float>;
+        Test.assert(near(r[0], 0.0, 0.01) && near(r[1], 145.0, 0.01));
+        return true;
+    }
+
+    // Goal HR wins over goal pace; clearing it brings the pace back; a
+    // ceiling-only goal never says HR LOW.
+    (:test)
+    function workoutTargetGoalHr(logger as Logger) as Boolean {
+        var w = new WorkoutTarget();
+        w.setGoal(540.0, Fmt.M_PER_MI, 10.0);
+        w.setGoalHr("130-145");
+        Test.assert(w.kind == WorkoutTarget.KIND_HR && w.source == WorkoutTarget.SOURCE_GOAL);
+        Test.assert(near(w.low, 130.0, 0.01) && near(w.high, 145.0, 0.01));
+        Test.assert(w.evaluate(3.0, 150) == WorkoutTarget.STATUS_FAST);
+        Test.assert(w.evaluate(3.0, 120) == WorkoutTarget.STATUS_SLOW);
+        // The goal pace still drives AHEAD/BEHIND bookkeeping.
+        Test.assert(w.goalSpeed() > 0.0);
+
+        w.setGoalHr("150");
+        Test.assert(near(w.low, 0.0, 0.01) && near(w.high, 150.0, 0.01));
+        w.status = WorkoutTarget.STATUS_NONE;
+        Test.assert(w.evaluate(null, 60) == WorkoutTarget.STATUS_ON);
+        Test.assert(w.evaluate(null, 160) == WorkoutTarget.STATUS_FAST);
+
+        w.setGoalHr("");
+        Test.assert(w.kind == WorkoutTarget.KIND_PACE && w.source == WorkoutTarget.SOURCE_GOAL);
+        Test.assert(!w.hasGoalHr());
+        w.setGoal(0.0, Fmt.M_PER_MI, 10.0);   // clearing the pace too: no goal at all
+        Test.assert(w.kind == WorkoutTarget.KIND_NONE);
+        return true;
+    }
 
     // ---- Robustness: hostile and degenerate inputs -------------------------
 
@@ -623,6 +666,16 @@ module CourseRunTests {
         Test.assert(w.goalSpeed() == 0.0);
         w.setGoal(540.0, Fmt.M_PER_MI, -10.0);                              // negative leeway = zero
         Test.assert(near(w.low, w.high, 0.0001));
+        var zones = [100, 120, 140, 155, 170, 190] as Array<Number>;
+        var bad = ["abc", "-", "-145", "2-", "0", "6", "29", "251", "1000", "9-200",
+                   "130-145-150", "13O", "1.5", "2-130"] as Array<String>;
+        for (var i = 0; i < bad.size(); i++) {
+            Test.assert(w.parseHr(bad[i], zones) == null);
+        }
+        Test.assert(w.parseHr("2", null) == null);                          // zone but no zones known
+        Test.assert(w.parseHr("2", [120] as Array<Number>) == null);
+        w.setGoalHr("junk");
+        Test.assert(!w.hasGoalHr());
         return true;
     }
 

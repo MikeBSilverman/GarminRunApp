@@ -31,6 +31,7 @@ class CourseRunField extends WatchUi.DataField {
     hidden const ALERT_HOLD_MS = 10000;   // a verdict must last this long before it buzzes
     hidden const STOP_TICKS = 3;          // seconds below the stop speed that make a stop
     hidden const SETTLE_MS = 30000;    // no pace verdict for this long after a step starts
+    hidden const HR_SETTLE_MS = 120000;   // heart rate lags effort: HR targets settle longer
     hidden const STATE_KEY = "run";
     hidden const SAVE_EVERY_MS = 180000;   // Resume Later always stops the timer, which saves
     hidden const REFRESH_TICKS = 15;       // poll the workout step; step callbacks cover changes
@@ -98,7 +99,6 @@ class CourseRunField extends WatchUi.DataField {
         cacheDeviceSettings();
         _fit = new FitRecorder(self, _distUnit);
         loadSettings();
-        _target.refresh();
     }
 
     hidden function cacheDeviceSettings() as Void {
@@ -125,7 +125,16 @@ class CourseRunField extends WatchUi.DataField {
         _alerts = readFloat("alerts", 1.0).toNumber();
 
         _tracker.setOfficialLength(_officialLen * _distUnit);
+        var kind = _target.kind;
+        var lo = _target.low;
+        var hi = _target.high;
         _target.setGoal(_goalSec, _paceUnit, _goalTolSec);
+        _target.setGoalHr(readString("goalHr"));
+        _target.refresh();
+        if (_target.kind != kind || _target.low != lo || _target.high != hi) {
+            // A new goal mid-run: judge it afresh, after the settle period.
+            newStep();
+        }
     }
 
     hidden function readFloat(key as String, dflt as Float) as Float {
@@ -257,7 +266,8 @@ class CourseRunField extends WatchUi.DataField {
 
         var status;
         var was = _target.status;
-        if (!_running || _target.isRest || _timerMs - _stepStartMs < SETTLE_MS
+        var settle = _target.kind == WorkoutTarget.KIND_HR ? HR_SETTLE_MS : SETTLE_MS;
+        if (!_running || _target.isRest || _timerMs - _stepStartMs < settle
             || _timerMs - _stopMs < _smoothMs) {
             // Paused, a rest step, settling into the step (or the start of
             // the run), or stopped with the timer running and until the stop
@@ -496,7 +506,8 @@ class CourseRunField extends WatchUi.DataField {
             return fast + "-" + slow;
         }
         if (_target.kind == WorkoutTarget.KIND_HR) {
-            return _target.low.toNumber().toString() + "-" + _target.high.toNumber().toString() + " BPM";
+            var hi = _target.high.toNumber().toString();
+            return _target.low > 0.0 ? _target.low.toNumber().toString() + "-" + hi + " BPM" : "UNDER " + hi + " BPM";
         }
         return "";
     }
@@ -676,7 +687,7 @@ class CourseRunField extends WatchUi.DataField {
             fill = statusColor(status);
             textColor = Graphics.COLOR_WHITE;
             line1 = statusWords(status);
-            if (_target.source == WorkoutTarget.SOURCE_GOAL) {
+            if (_target.source == WorkoutTarget.SOURCE_GOAL && _target.kind == WorkoutTarget.KIND_PACE) {
                 line2 = goalLine();
             } else {
                 // The verdict is the last 30 s; the step's average says how

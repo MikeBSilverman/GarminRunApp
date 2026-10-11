@@ -26,10 +26,10 @@ Race courses are measured along the shortest legal line and nobody runs it. GPS 
 | **TARGET 7:51-8:33** (grey) | The first 30 s of the run and of each workout step: no verdict yet while you settle into the new pace. Also while you're stopped or walking with the timer running (a light, a walk break), and for 30 s after you set off again, so the stop doesn't read as SPEED UP. |
 | **AHEAD 0:09 / BEHIND 0:12** | Goal-pace mode: seconds ahead of or behind your goal at this point in the course. |
 | **AVG 8:41 · 7:51-8:33** | Workout mode: this step's average pace so far, then the step's target range, fastest first. The band colour judges the last 30 s (so you know what to do now); the average says how the step as a whole is going. Shows the step name instead until 100 m into the step. |
-| **HR OK / HR HIGH / HR LOW** | The step has a heart-rate target instead of pace. |
-| **REST / RECOVERY** | Rest steps: no verdict and no alerts, whatever their target. |
+| **HR OK / HR HIGH / HR LOW** | Heart-rate mode: the step has a heart-rate target, or the Goal heart rate setting is on. Judges your current heart rate against the range (**UNDER 145 BPM** for a ceiling only). Heart rate lags effort, so the first 2 minutes of the run and of each step give no verdict. |
+| **REST / RECOVERY** | Rest steps, and recovery steps without a target (the jog between intervals): no verdict and no alerts. A recovery step with its own target (a recovery run built as a workout) is judged like any other step. |
 | **WARM UP / COOL DOWN** | Step names, shown with the step's target if it has one. |
-| **NO GOAL SET** | No workout target and no goal pace in settings. The band is simply off. |
+| **NO GOAL SET** | No workout target and no goal pace or goal heart rate in settings. The band is simply off. |
 | **COURSE MI** | The big number is distance along the course. |
 | **GPS MI** | No course. The big number is plain GPS distance. |
 | **OFF COURSE MI** (orange) | The course stopped advancing while you kept moving. Distance is being added from GPS until you rejoin. |
@@ -73,7 +73,7 @@ Getting the course onto the watch: most races publish a GPX. Import it in Garmin
 | Course distance reads *more* than the watch | The number is how far along the course file you are, not how far your feet went. A hand-drawn route with square corners is longer than the line you run through them, so cutting a corner moves you forward along the course for free. On a certified race course the opposite happens (the course is the shortest line) and the **Race distance** setting lines the two up. |
 | A bare number on a coloured block | The field is in a 2- or 4-field layout. Use the 1-field layout. |
 | Band says **NO HR** | The step has a heart-rate target but no heart rate is available. Check the strap or wrist sensor. |
-| Band stays grey with **NO GOAL SET** | No workout target and no goal pace. Set one in settings, or load a workout. |
+| Band stays grey with **NO GOAL SET** | No workout target, goal pace or goal heart rate. Set one in settings, or load a workout. |
 
 ## Settings
 
@@ -81,7 +81,8 @@ Getting the course onto the watch: most races publish a GPX. Import it in Garmin
 |---|---|
 | **Goal pace** | For runs without a workout. Minutes:seconds per mile (per km if the watch shows metric pace), e.g. `9:20`. Used when no workout target is active. Blank = off. |
 | **Goal pace leeway** | Seconds per mile/km that still count as on pace. Default 10. |
-| **Vibrate when you drift off pace** | Off / goal pace only (default) / always. Workouts already alert on their own. Buzzes once the verdict has held 10 s, at most once per 15 s. |
+| **Goal heart rate** | For easy and recovery runs: judge heart rate instead of pace. `2` = zone 2 (the watch's running zones), `1-2` = zones 1 to 2, `130-145` = a bpm range, `145` = only warn above 145 (no HR LOW). Wins over the goal pace; a workout target wins over both. Blank = off. |
+| **Vibrate when you drift off pace or heart rate** | Off / goals only (default) / always. Workouts already alert on their own. Buzzes once the verdict has held 10 s, at most once per 15 s. |
 | **Race distance** | e.g. `13.11` (miles) or `21.1` (km). The finish then reads exactly this even if the course file measures a little long or short. Only applies when the loaded course is within 5% of it. **Set back to 0 after the race.** |
 | **Big number shows** | Distance run (default) or distance to go. |
 | **Right-hand pace** | Last mile or km (watch units, default), last mile, last km, or lap pace on course distance. |

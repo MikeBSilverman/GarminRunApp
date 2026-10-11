@@ -5,6 +5,9 @@
     <setting propertyKey="@Properties.goalTolerance" title="@Strings.GoalTolTitle" prompt="@Strings.GoalTolPrompt">
         <settingConfig type="numeric" min="0" max="60" />
     </setting>
+    <setting propertyKey="@Properties.goalHr" title="@Strings.GoalHrTitle" prompt="@Strings.GoalHrPrompt">
+        <settingConfig type="alphaNumeric" maxLength="7" />
+    </setting>
     <setting propertyKey="@Properties.alerts" title="@Strings.AlertsTitle">
         <settingConfig type="list">
             <listEntry value="0">@Strings.AlertsOff</listEntry>

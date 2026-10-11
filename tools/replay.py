@@ -4,6 +4,7 @@ would have shown.
 
     python tools/replay.py run.fit                          # workout or goal run
     python tools/replay.py run.fit --goal 8:55              # goal-pace mode
+    python tools/replay.py run.fit --goal-hr 145            # goal heart rate (ceiling)
     python tools/replay.py run.fit --course COURSE.fit      # also replay CourseTracker
     python tools/replay.py half.fit --course lap.gpx --laps 3 --fit-to-run \\
         --official 13.1094 --goal 8:55 --write-course race.gpx
@@ -20,8 +21,9 @@ replayed on it; without a course the pace model runs on the recorded
 course_dist, or GPS distance if there is none. The models below are ports of
 source/*.mc and must be kept in step with them.
 
-Not replayed: heart-rate zone targets (zone numbers need the watch's zone
-table); % of max HR targets use the FIT file's max HR when present.
+Not replayed: workout heart-rate zone targets (zone numbers need the watch's
+zone table; --hr-zones covers the goal setting only); % of max HR targets use
+the FIT file's max HR when present.
 
 Needs: pip install fitparse
 """
@@ -52,6 +54,7 @@ INTENSITY = {0: "active", 1: "rest", 2: "warmup", 3: "cooldown", 4: "recovery", 
 STEP_LABEL = {"rest": "REST", "recovery": "RECOVERY", "warmup": "WARM UP", "cooldown": "COOL DOWN"}
 
 SETTLE_MS = 30000          # CourseRunField.SETTLE_MS
+HR_SETTLE_MS = 120000      # CourseRunField.HR_SETTLE_MS
 ALERT_GAP_MS = 15000       # CourseRunField.ALERT_GAP_MS
 ALERT_HOLD_MS = 10000      # CourseRunField.ALERT_HOLD_MS
 STOP_TICKS = 3             # CourseRunField.STOP_TICKS
@@ -100,6 +103,21 @@ class PaceBuffer:
         return max(0.0, (now_d - d0) * 1000.0 / (now_t - t0))
 
 
+def parse_hr(spec, zones=None):
+    """WorkoutTarget.parseHr(): "2" zone, "1-2" zones, "130-145" bpm, "145" ceiling.
+    zones: the watch's [z1 min, z1 max, ... z5 max], or None."""
+    s = spec.strip()
+    parts = s.split("-")
+    if len(parts) > 2 or not all(p.isdigit() and len(p) <= 3 for p in parts):
+        return None
+    lo, hi = sorted(int(p) for p in (parts * 2)[:2])
+    if lo >= 1 and hi <= 5:
+        return (float(zones[lo - 1]), float(zones[hi])) if zones and len(zones) >= 6 else None
+    if lo < 30 or hi > 250:
+        return None
+    return (float(lo) if len(parts) == 2 else 0.0, float(hi))
+
+
 class WorkoutTarget:
     """source/WorkoutTarget.mc: target parsing, goal fallback, hysteresis."""
     OPEN_HIGH = 99.0
@@ -118,6 +136,7 @@ class WorkoutTarget:
         self.status = NONE
         self.goal_speed = 0.0
         self.goal_tol = 0.0
+        self.goal_hr = None       # (low, high) bpm; low 0 = ceiling only
 
     def set_goal(self, sec_per_unit, unit_m, tol_sec):
         if sec_per_unit <= 0:
@@ -126,8 +145,17 @@ class WorkoutTarget:
         self.goal_speed = unit_m / sec_per_unit
         self.goal_tol = tol_sec / sec_per_unit if tol_sec > 0 else 0.0
 
+    def set_goal_hr(self, spec, zones=None):
+        self.goal_hr = parse_hr(spec, zones) if spec else None
+
     def apply_goal(self):
-        if self.kind is not None or self.goal_speed <= 0 or self.rest:
+        if self.kind is not None or self.rest:
+            return
+        if self.goal_hr:
+            self.low, self.high = self.goal_hr
+            self.kind, self.source = "hr", "goal"
+            return
+        if self.goal_speed <= 0:
             return
         self.low = self.goal_speed / (1 + self.goal_tol)
         self.high = self.goal_speed / (1 - self.goal_tol)
@@ -157,6 +185,8 @@ class WorkoutTarget:
                               step.get("custom_target_heart_rate_high") or 0, max_hr)
             if self.kind is not None:
                 self.source = "workout"
+                if inten == "recovery":
+                    self.rest = False   # a recovery step with its own target is judged
         self.apply_goal()
 
     def set_from(self, target_type, lo, hi, max_hr=None):
@@ -614,6 +644,7 @@ def replay_band(run, dist, modes, a, unit):
     segments are workout steps, or laps when there is no workout."""
     tgt = WorkoutTarget()
     tgt.set_goal(parse_pace(a.goal) if a.goal else 0.0, unit, a.tol)
+    tgt.set_goal_hr(a.goal_hr, a.hr_zones)
     gps_buf = PaceBuffer(64)
     alerts = {"off": 0, "goal": 1, "always": 2}[a.alerts]
     by_lap = not run.steps
@@ -653,7 +684,8 @@ def replay_band(run, dist, modes, a, unit):
                 stop_ms = t_ms
         speed = None
         was = tgt.status
-        if (not running or tgt.rest or t_ms - step_start < SETTLE_MS
+        settle = HR_SETTLE_MS if tgt.kind == "hr" else SETTLE_MS
+        if (not running or tgt.rest or t_ms - step_start < settle
                 or t_ms - stop_ms < a.smooth * 1000):
             tgt.status = status = NONE
         else:
@@ -694,7 +726,7 @@ def new_segment(label, tgt, t_ms, d, unit):
         slow = "open" if tgt.low <= 0 else pace_from_speed(tgt.low, unit)
         rng = f"{fast}-{slow}"
     elif tgt.kind == "hr":
-        rng = f"{tgt.low:.0f}-{tgt.high:.0f} bpm"
+        rng = f"{tgt.low:.0f}-{tgt.high:.0f} bpm" if tgt.low > 0 else f"under {tgt.high:.0f} bpm"
     return {"label": label, "range": rng, "t0": t_ms, "d0": d, "t1": t_ms, "d1": d,
             "count": {NONE: 0, ON: 0, FAST: 0, SLOW: 0}, "alerts": 0, "rec": 0, "agree": 0}
 
@@ -790,6 +822,8 @@ def main():
                     help="distance for the pace model (default: sim with --course, else recorded, else gps)")
     ap.add_argument("--goal", help="goal pace setting, m:ss or decimal minutes per unit")
     ap.add_argument("--tol", type=float, default=10.0, help="goal tolerance setting, seconds (default 10)")
+    ap.add_argument("--goal-hr", help="goal heart rate setting: 2, 1-2, 130-145 or 145")
+    ap.add_argument("--hr-zones", help="the watch's running HR zones for zone goals, e.g. 100,120,140,155,170,190")
     ap.add_argument("--alerts", choices=["off", "goal", "always"], default="goal",
                     help="alerts setting (default goal)")
     ap.add_argument("--smooth", type=int, default=30, help="smoothing setting, seconds (default 30)")
@@ -803,6 +837,10 @@ def main():
         ap.error("--smooth: the setting allows 5-120 s")
     if a.laps < 1:
         ap.error("--laps must be at least 1")
+    if a.hr_zones:
+        a.hr_zones = [int(z) for z in a.hr_zones.split(",")]
+    if a.goal_hr and not parse_hr(a.goal_hr, a.hr_zones):
+        ap.error(f"--goal-hr {a.goal_hr}: not a zone (needs --hr-zones), bpm range or ceiling")
     if a.goal and not parse_pace(a.goal):
         ap.error(f"--goal {a.goal}: not a pace between 2:00 and 30:00")
 

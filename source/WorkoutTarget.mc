@@ -5,7 +5,7 @@ import Toybox.UserProfile;
 // The pace or heart-rate target the status band judges against. It comes
 // from the native workout engine (Garmin Coach, daily suggested workouts,
 // calendar workouts) or, when no workout target is active, from the goal
-// pace setting.
+// heart rate or goal pace setting (heart rate wins when both are set).
 //
 // Activity.getCurrentWorkoutStep() is documented as throwing from data
 // fields, but shipping data fields call it successfully; it is guarded here
@@ -42,10 +42,12 @@ class WorkoutTarget {
     hidden const HYST = 0.015;       // 1.5% dead band before status changes
     hidden const STOP_FRACTION = 0.65;   // of the slow bound: below this you've stopped or walk
     hidden const STOP_SPEED = 1.6;       // m/s (16:46/mi) when there is no slow pace bound
+    hidden const BPM_MIN = 30.0;         // goal HR values outside this are typos
+    hidden const BPM_MAX = 250.0;
 
     var kind as Number = KIND_NONE;
     var source as Number = SOURCE_NONE;
-    var low as Float = 0.0;   // pace: slow bound m/s (0 = open); HR: low bpm
+    var low as Float = 0.0;   // pace: slow bound m/s (0 = open); HR: low bpm (0 = open)
     var high as Float = 0.0;  // pace: fast bound m/s (OPEN_HIGH = open); HR: high bpm
     var hasWorkout as Boolean = false;
     var stepLabel as String = "";   // "REST", "WARM UP", or the step name
@@ -55,6 +57,8 @@ class WorkoutTarget {
     hidden var _zones as Array<Number> or Null = null;
     hidden var _goalSpeed as Float = 0.0;   // m/s, 0 = no goal
     hidden var _goalTol as Float = 0.0;     // fraction of goal speed
+    hidden var _goalHrLo as Float = 0.0;    // bpm, 0 = no floor
+    hidden var _goalHrHi as Float = 0.0;    // bpm, 0 = no HR goal
 
     function initialize() {
     }
@@ -64,10 +68,78 @@ class WorkoutTarget {
     function setGoal(secPerUnit as Float, unitM as Float, tolSec as Float) as Void {
         if (secPerUnit <= 0.0) {
             _goalSpeed = 0.0;
-            return;
+        } else {
+            _goalSpeed = unitM / secPerUnit;
+            _goalTol = tolSec > 0.0 ? tolSec / secPerUnit : 0.0;
         }
-        _goalSpeed = unitM / secPerUnit;
-        _goalTol = tolSec > 0.0 ? tolSec / secPerUnit : 0.0;
+        reapplyGoal();
+    }
+
+    // Goal heart rate fallback from the setting text (see parseHr). Wins
+    // over the goal pace. Blank or unreadable = none.
+    function setGoalHr(spec as String) as Void {
+        var r = null;
+        if (Fmt.trim(spec).length() > 0) {
+            if (_zones == null) {
+                _zones = UserProfile.getHeartRateZones(UserProfile.HR_ZONE_SPORT_RUNNING);
+            }
+            r = parseHr(spec, _zones);
+        }
+        _goalHrLo = r != null ? r[0] : 0.0;
+        _goalHrHi = r != null ? r[1] : 0.0;
+        reapplyGoal();
+    }
+
+    function hasGoalHr() as Boolean {
+        return _goalHrHi > 0.0;
+    }
+
+    // Goal HR setting text to [low, high] bpm (low 0 = no floor), or null:
+    //   "2"       zone 2 of the watch's running zones
+    //   "1-2"     zones 1 to 2
+    //   "130-145" a bpm range
+    //   "145"     a ceiling only: never HR LOW
+    // zones is UserProfile.getHeartRateZones(): [z1 min, z1 max, ... z5 max].
+    function parseHr(spec as String, zones as Array<Number> or Null) as Array<Float> or Null {
+        var s = Fmt.trim(spec);
+        if (s.length() == 0 || !Fmt.digitsAndOne(s, '-')) {
+            return null;
+        }
+        var dash = s.find("-");
+        var a = (dash != null ? s.substring(0, dash) : s) as String;
+        var b = (dash != null ? s.substring(dash + 1, s.length()) : s) as String;
+        if (a.length() == 0 || b.length() == 0 || a.length() > 3 || b.length() > 3) {
+            return null;
+        }
+        var lo = a.toNumber();
+        var hi = b.toNumber();
+        if (lo == null || hi == null) {
+            return null;
+        }
+        if (lo > hi) {
+            var t = lo;
+            lo = hi;
+            hi = t;
+        }
+        if (lo >= 1 && hi <= 5) {
+            if (zones == null || zones.size() < 6) {
+                return null;
+            }
+            return [zones[lo - 1].toFloat(), zones[hi].toFloat()] as Array<Float>;
+        }
+        if (lo < BPM_MIN || hi > BPM_MAX) {
+            return null;
+        }
+        return [dash != null ? lo.toFloat() : 0.0, hi.toFloat()] as Array<Float>;
+    }
+
+    // A goal setting changed: replace a goal target in force (or fill an
+    // empty one). A workout target stays.
+    hidden function reapplyGoal() as Void {
+        if (source == SOURCE_GOAL) {
+            kind = KIND_NONE;
+            source = SOURCE_NONE;
+        }
         applyGoal();
     }
 
@@ -76,7 +148,17 @@ class WorkoutTarget {
     }
 
     hidden function applyGoal() as Void {
-        if (kind != KIND_NONE || _goalSpeed <= 0.0 || isRest) {
+        if (kind != KIND_NONE || isRest) {
+            return;
+        }
+        if (_goalHrHi > 0.0) {
+            low = _goalHrLo;
+            high = _goalHrHi;
+            kind = KIND_HR;
+            source = SOURCE_GOAL;
+            return;
+        }
+        if (_goalSpeed <= 0.0) {
             return;
         }
         // Slower pace = lower speed. Tolerance is symmetric in time per unit.
@@ -134,6 +216,12 @@ class WorkoutTarget {
             setFrom(tt, step.targetValueLow, step.targetValueHigh, _zones);
             if (kind != KIND_NONE) {
                 source = SOURCE_WORKOUT;
+                // A recovery step with its own target (a recovery run built
+                // as a workout: "Recovery, HR zone 2") is judged; one without
+                // (the jog between intervals) stays quiet like a rest.
+                if (inten == Activity.WORKOUT_INTENSITY_RECOVERY) {
+                    isRest = false;
+                }
             }
         }
     }
