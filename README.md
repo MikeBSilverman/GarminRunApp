@@ -8,7 +8,7 @@ A full-screen Garmin data field for racing and training on a course. It lives in
      COURSE MI · FIN 1:57:35       where the number comes from, and projected finish
       8:58     |    8:58           course average pace | last mile (or km, or lap)
    COURSE AVG  |  LAST MI
-     43:41     |    162            time | heart rate
+   43:41   |  162  |  172          time (h:mm past an hour) | heart rate | cadence
 ```
 
 ## Why

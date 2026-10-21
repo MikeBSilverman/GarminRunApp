@@ -48,6 +48,7 @@ class CourseRunField extends WatchUi.DataField {
     hidden var _lastTimerMs as Number = -1;
     hidden var _running as Boolean = false;   // timer advanced on the last compute
     hidden var _hr as Number or Null = null;
+    hidden var _cadence as Number or Null = null;
     hidden var _tick as Number = 0;
 
     // Settings
@@ -237,6 +238,7 @@ class CourseRunField extends WatchUi.DataField {
         var timer = info.timerTime;
         _timerMs = timer != null ? timer : 0;
         _hr = info.currentHeartRate;
+        _cadence = info.currentCadence;
         var started = info.startTime;
         _startSec = started != null ? started.value() : null;
 
@@ -651,17 +653,22 @@ class CourseRunField extends WatchUi.DataField {
         dc.drawText(lx, Layout.pct(h, 69), Layout.labelFont(),
                     _tracker.mode == CourseTracker.MODE_COURSE ? "COURSE AVG" : "AVG PACE", vc);
         dc.drawText(rx, Layout.pct(h, 69), Layout.labelFont(), rightLabel, vc);
-        dc.drawLine(cx, Layout.pct(h, 57), cx, Layout.pct(h, 90));
+        dc.drawLine(cx, Layout.pct(h, 57), cx, Layout.pct(h, 74));
 
-        // Row 3: timer | heart rate.
-        var tx = Layout.pct(w, 34);
-        var hx = Layout.pct(w, 66);
+        // Row 3: timer | heart rate | cadence. Timer is m:ss, then h:mm past an hour,
+        // so three columns fit inside the chord at 87% height (about 17%..83%).
+        var tx = Layout.pct(w, 28);
+        var hx = Layout.pct(w, 54);
+        var kx = Layout.pct(w, 76);
         dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(tx, Layout.pct(h, 79), Layout.rowFont(h), Fmt.timer(_timerMs), vc);
+        dc.drawText(tx, Layout.pct(h, 79), Layout.rowFont(h), Fmt.timerShort(_timerMs), vc);
         dc.drawText(hx, Layout.pct(h, 79), Layout.rowFont(h), _hr != null ? _hr.toString() : "--", vc);
+        dc.drawText(kx, Layout.pct(h, 79), Layout.rowFont(h),
+                    _cadence != null ? _cadence.toString() : "--", vc);
         dc.setColor(dim, Graphics.COLOR_TRANSPARENT);
         dc.drawText(tx, Layout.pct(h, 87), Layout.labelFont(), "TIME", vc);
         dc.drawText(hx, Layout.pct(h, 87), Layout.labelFont(), "HR", vc);
+        dc.drawText(kx, Layout.pct(h, 87), Layout.labelFont(), "CAD", vc);
     }
 
     hidden function drawBand(dc as Graphics.Dc, w as Number, h as Number, dim as Number,

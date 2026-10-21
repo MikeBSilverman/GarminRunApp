@@ -46,6 +46,21 @@ module Fmt {
         return m.toString() + ":" + pad2(s);
     }
 
+    // Elapsed time for the bottom row: m:ss under an hour, then h:mm (seconds
+    // dropped) so the string stays short next to HR and cadence.
+    function timerShort(ms as Number) as String {
+        var total = ms / 1000;
+        if (total < 0) {
+            total = 0;
+        }
+        var h = total / 3600;
+        var m = (total % 3600) / 60;
+        if (h > 0) {
+            return h.toString() + ":" + pad2(m);
+        }
+        return m.toString() + ":" + pad2(total % 60);
+    }
+
     // "9:00", "9:0", "9" or "9.5" (decimal minutes) -> seconds per unit.
     // Anything unparseable or out of a sane range (2:00..30:00) -> 0.
     // Only digits, one optional ':' or '.', are accepted; toNumber() alone

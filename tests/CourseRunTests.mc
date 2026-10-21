@@ -738,6 +738,9 @@ module CourseRunTests {
         Test.assertEqual(Fmt.pace(null), "--:--");
         Test.assertEqual(Fmt.timer(2621000), "43:41");
         Test.assertEqual(Fmt.timer(5461000), "1:31:01");
+        Test.assertEqual(Fmt.timerShort(2621000), "43:41");
+        Test.assertEqual(Fmt.timerShort(5461000), "1:31");
+        Test.assertEqual(Fmt.timerShort(-5000), "0:00");
         Test.assertEqual(Fmt.dist(7837.0, Fmt.M_PER_MI), "4.87");
         Test.assert(near(Fmt.parsePace("9:00"), 540.0, 0.01));
         Test.assert(near(Fmt.parsePace(" 8:45 "), 525.0, 0.01));
