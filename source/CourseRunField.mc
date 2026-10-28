@@ -529,15 +529,9 @@ class CourseRunField extends WatchUi.DataField {
         return "";
     }
 
-    // "AVG 8:41 · " for the current workout step, once it has 100 m of
-    // course distance; empty before that (and for HR targets).
-    hidden function stepAvgText() as String {
-        var d = _tracker.courseDist - _stepStartDist;
-        var t = _timerMs - _stepStartMs;
-        if (_target.kind != WorkoutTarget.KIND_PACE || d < 100.0 || t <= 0) {
-            return "";
-        }
-        return "AVG " + Fmt.pace(t / 1000.0 / d * _paceUnit) + " · ";
+    // A workout is running: row 2 right and row 3 left follow the step.
+    hidden function inWorkout() as Boolean {
+        return _target.hasWorkout && _timerMs > 0;
     }
 
     hidden function goalLine() as String {
@@ -623,7 +617,15 @@ class CourseRunField extends WatchUi.DataField {
         var rx = Layout.pct(w, 70);
         var rightLabel;
         var rightSpm = null;
-        if (_rollingUnit == 3) {
+        var workout = inWorkout();
+        if (workout) {
+            // The step's average on course distance: the rep split.
+            rightLabel = "STEP AVG";
+            var sd = _tracker.courseDist - _stepStartDist;
+            if (sd > 10.0 && _timerMs > _stepStartMs) {
+                rightSpm = (_timerMs - _stepStartMs) / 1000.0 / sd;
+            }
+        } else if (_rollingUnit == 3) {
             rightLabel = "LAP PACE";
             var ld = _tracker.courseDist - _lapStartDist;
             if (ld > 10.0 && _timerMs > _lapStartMs) {
@@ -640,6 +642,8 @@ class CourseRunField extends WatchUi.DataField {
                     Fmt.pace(avg != null ? avg * _paceUnit : null), vc);
         if (rightSpm != null) {
             dc.drawText(rx, Layout.pct(h, 61), Layout.valueFont(h), Fmt.pace(rightSpm * _paceUnit), vc);
+        } else if (workout) {
+            dc.drawText(rx, Layout.pct(h, 61), Layout.valueFont(h), Fmt.pace(null), vc);
         } else {
             // Before a full window is covered, show the average so far, dimmed.
             dc.setColor(dim, Graphics.COLOR_TRANSPARENT);
@@ -657,20 +661,40 @@ class CourseRunField extends WatchUi.DataField {
 
         // Row 3: timer | heart rate | cadence. Timer is m:ss, then h:mm past an hour,
         // so three columns fit inside the chord at 87% height (about 17%..83%).
+        // In a workout the timer is the step's: time left in a timed step,
+        // else time in the step.
         var tx = Layout.pct(w, 28);
         var hx = Layout.pct(w, 54);
         var kx = Layout.pct(w, 76);
-        dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(tx, Layout.pct(h, 79), Layout.rowFont(h), Fmt.timerShort(_timerMs), vc);
-        if (_target.hrOverCap(_hr)) {
-            dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
+        var timeMs = _timerMs;
+        var timeLabel = "TIME";
+        if (workout) {
+            timeMs = _timerMs - _stepStartMs;
+            timeLabel = "STEP";
+            if (_target.stepMs > 0) {
+                timeMs = _target.stepMs - timeMs;
+                timeLabel = "LEFT";
+            }
         }
-        dc.drawText(hx, Layout.pct(h, 79), Layout.rowFont(h), _hr != null ? _hr.toString() : "--", vc);
+        dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(tx, Layout.pct(h, 79), Layout.rowFont(h), Fmt.timerShort(timeMs < 0 ? 0 : timeMs), vc);
+        var hrText = _hr != null ? _hr.toString() : "--";
+        if (_target.hrOverCap(_hr)) {
+            // White on a red pill: red digits on black were too dark to read
+            // on the FR965 (0.6.0).
+            var dims = dc.getTextDimensions(hrText, Layout.rowFont(h));
+            var pw = dims[0] + Layout.pct(w, 4);
+            var ph = dims[1] * 8 / 10;
+            dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_RED);
+            dc.fillRoundedRectangle(hx - pw / 2, Layout.pct(h, 79) - ph / 2, pw, ph, ph / 4);
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        }
+        dc.drawText(hx, Layout.pct(h, 79), Layout.rowFont(h), hrText, vc);
         dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
         dc.drawText(kx, Layout.pct(h, 79), Layout.rowFont(h),
                     _cadence != null ? _cadence.toString() : "--", vc);
         dc.setColor(dim, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(tx, Layout.pct(h, 87), Layout.labelFont(), "TIME", vc);
+        dc.drawText(tx, Layout.pct(h, 87), Layout.labelFont(), timeLabel, vc);
         dc.drawText(hx, Layout.pct(h, 87), Layout.labelFont(), "HR", vc);
         dc.drawText(kx, Layout.pct(h, 87), Layout.labelFont(), "CAD", vc);
     }
@@ -720,11 +744,9 @@ class CourseRunField extends WatchUi.DataField {
             if (_target.source == WorkoutTarget.SOURCE_GOAL && _target.kind == WorkoutTarget.KIND_PACE) {
                 line2 = goalLine();
             } else {
-                // The verdict is the last 30 s; the step's average says how
-                // the step as a whole is going (lap pace, in effect).
-                var avg = stepAvgText();
+                // The step average is in row 2 during a workout.
                 var lbl = _target.stepLabel;
-                line2 = (avg.length() > 0 ? avg : (lbl.length() > 0 ? lbl + " " : "")) + rangeText();
+                line2 = (lbl.length() > 0 ? lbl + " " : "") + rangeText();
             }
         }
 

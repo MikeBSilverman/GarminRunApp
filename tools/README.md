@@ -7,7 +7,7 @@ building a scratch copy of the app with seeded values.
 tools/preview.sh fr965 goal dark       # -> bin/preview/shot_fr965_goal.png (simulator window capture)
 tools/preview.sh fenix7s compact       # small-screen / 2-field layout check
 ```
-Scenarios: prestart, goal, workout, rest, split, mismatch, offcourse, togo, compact.
+Scenarios: prestart, goal, workout, workoutcap, rest, split, mismatch, offcourse, togo, compact.
 `mkpreview.py` seeds the state (edit the `seeds` dict to add one); `shot.ps1`
 moves the simulator window to the top-left and copies it from the screen.
 (Rendering the window by handle instead leaves the watch screen transparent.)

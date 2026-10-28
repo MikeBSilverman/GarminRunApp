@@ -629,6 +629,23 @@ module CourseRunTests {
         return true;
     }
 
+    // Timed-step length for the countdown: seconds or ms by size; other
+    // duration types (distance, open) and junk give 0 (count up).
+    (:test)
+    function workoutTargetTimedStep(logger as Logger) as Boolean {
+        var w = new WorkoutTarget();
+        Test.assertEqual(w.timedStepMs(Activity.WORKOUT_STEP_DURATION_TIME, 420), 420000);
+        Test.assertEqual(w.timedStepMs(Activity.WORKOUT_STEP_DURATION_TIME, 420000), 420000);
+        Test.assertEqual(w.timedStepMs(Activity.WORKOUT_STEP_DURATION_TIME, 20000), 20000);
+        Test.assertEqual(w.timedStepMs(Activity.WORKOUT_STEP_DURATION_TIME, 60.0), 60000);
+        Test.assertEqual(w.timedStepMs(Activity.WORKOUT_STEP_DURATION_DISTANCE, 1609), 0);
+        Test.assertEqual(w.timedStepMs(Activity.WORKOUT_STEP_DURATION_OPEN, 0), 0);
+        Test.assertEqual(w.timedStepMs(Activity.WORKOUT_STEP_DURATION_TIME, 0), 0);
+        Test.assertEqual(w.timedStepMs(Activity.WORKOUT_STEP_DURATION_TIME, -5), 0);
+        Test.assertEqual(w.timedStepMs(null, null), 0);
+        return true;
+    }
+
     // ---- Robustness: hostile and degenerate inputs -------------------------
 
     // Garbage from the watch must never throw or produce negative distance.

@@ -16,10 +16,10 @@
     <string id="DistanceRun">Distance run</string>
     <string id="DistanceToGo">Distance to go (needs a course)</string>
     <string id="RollingUnitTitle">Right-hand pace</string>
-    <string id="UnitAuto">Last mile or km (watch units)</string>
-    <string id="UnitMile">Last mile</string>
-    <string id="UnitKm">Last km</string>
-    <string id="UnitLap">Lap pace (course distance)</string>
+    <string id="UnitAuto">Rolling last mile/km (watch units)</string>
+    <string id="UnitMile">Rolling last mile</string>
+    <string id="UnitKm">Rolling last km</string>
+    <string id="UnitLap">Lap average</string>
     <string id="SmoothTitle">ON PACE band: seconds of pace to average</string>
     <string id="SmoothPrompt">Default 30. Higher is steadier but slower to react.</string>
     <string id="FitCourseDistChart">Course Distance</string>

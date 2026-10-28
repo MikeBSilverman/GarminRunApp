@@ -44,6 +44,7 @@ class WorkoutTarget {
     hidden const STOP_SPEED = 1.6;       // m/s (16:46/mi) when there is no slow pace bound
     hidden const BPM_MIN = 30.0;         // goal HR values outside this are typos
     hidden const BPM_MAX = 250.0;
+    hidden const MS_MIN = 20000;         // timed-step lengths at or above this are ms
 
     var kind as Number = KIND_NONE;
     var source as Number = SOURCE_NONE;
@@ -52,6 +53,7 @@ class WorkoutTarget {
     var hasWorkout as Boolean = false;
     var stepLabel as String = "";   // "REST", "WARM UP", or the step name
     var isRest as Boolean = false;
+    var stepMs as Number = 0;      // length of a timed step, 0 = distance/open/no workout
     var status as Number = STATUS_NONE;
 
     hidden var _zones as Array<Number> or Null = null;
@@ -184,11 +186,13 @@ class WorkoutTarget {
         var wasHigh = high;
         var wasRest = isRest;
         var wasLabel = stepLabel;
+        var wasStepMs = stepMs;
         kind = KIND_NONE;
         source = SOURCE_NONE;
         hasWorkout = false;
         stepLabel = "";
         isRest = false;
+        stepMs = 0;
         if (Activity has :getCurrentWorkoutStep) {
             try {
                 readWorkout();
@@ -198,7 +202,7 @@ class WorkoutTarget {
         }
         applyGoal();
         return wasKind != kind || wasLow != low || wasHigh != high
-            || wasRest != isRest || !stepLabel.equals(wasLabel);
+            || wasRest != isRest || !stepLabel.equals(wasLabel) || wasStepMs != stepMs;
     }
 
     hidden function readWorkout() as Void {
@@ -222,6 +226,7 @@ class WorkoutTarget {
                 _zones = UserProfile.getHeartRateZones(UserProfile.HR_ZONE_SPORT_RUNNING);
             }
             setFrom(tt, step.targetValueLow, step.targetValueHigh, _zones);
+            stepMs = timedStepMs(step.durationType, step.durationValue);
             if (kind != KIND_NONE) {
                 source = SOURCE_WORKOUT;
                 // A recovery step with its own target (a recovery run built
@@ -300,6 +305,17 @@ class WorkoutTarget {
             }
             kind = KIND_HR;
         }
+    }
+
+    // Length of a timed step in ms, else 0. The API doesn't say whether
+    // durationValue is s or ms (FIT stores ms); like speed, read it by size:
+    // under 20000 is seconds (a 5.5 h step), at or above is ms (a 20 s stride).
+    function timedStepMs(durationType as Number or Null, value as Numeric or Null) as Number {
+        if (durationType != Activity.WORKOUT_STEP_DURATION_TIME || value == null || value <= 0) {
+            return 0;
+        }
+        var v = value.toNumber();
+        return v >= MS_MIN ? v : v * 1000;
     }
 
     // m/s from a speed target value in mm/s or m/s (see the class comment).

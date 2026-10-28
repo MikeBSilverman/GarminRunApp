@@ -25,7 +25,7 @@ Race courses are measured along the shortest legal line and nobody runs it. GPS 
 | **ON PACE / SLOW DOWN / SPEED UP** | Green, red, blue. Compares your pace over the last 30 s (a setting) with the current workout step's target, or with your goal pace when no workout target is active. The pace comes from GPS speed scaled to the course, which is steadier than course distance second to second. |
 | **TARGET 7:51-8:33** (grey) | The first 30 s of the run and of each workout step: no verdict yet while you settle into the new pace. Also while you're stopped or walking with the timer running (a light, a walk break), and for 30 s after you set off again, so the stop doesn't read as SPEED UP. |
 | **AHEAD 0:09 / BEHIND 0:12** | Goal-pace mode: seconds ahead of or behind your goal at this point in the course. |
-| **AVG 8:41 · 7:51-8:33** | Workout mode: this step's average pace so far, then the step's target range, fastest first. The band colour judges the last 30 s (so you know what to do now); the average says how the step as a whole is going. Shows the step name instead until 100 m into the step. |
+| **INTERVAL 7:51-8:33** | Workout mode: the step name and its target range, fastest first. The band colour judges the last 30 s (so you know what to do now); STEP AVG in row 2 says how the step as a whole is going. |
 | **HR OK / HR HIGH / HR LOW** | Heart-rate mode: the step has a heart-rate target, or the Goal heart rate setting is on. Judges your current heart rate against the range (**UNDER 145 BPM** for a ceiling only). Heart rate lags effort, so the first 2 minutes of the run and of each step give no verdict. |
 | **REST / RECOVERY** | Rest steps, and recovery steps without a target (the jog between intervals): no verdict and no alerts. A recovery step with its own target (a recovery run built as a workout) is judged like any other step. |
 | **WARM UP / COOL DOWN** | Step names, shown with the step's target if it has one. |
@@ -39,6 +39,7 @@ Race courses are measured along the shortest legal line and nobody runs it. GPS 
 | **MI 5  8:52** | Flashes for 6 s at each course mile (or km) with that split. Native auto-laps use GPS distance, so they drift from the mile markers; these don't. |
 | **COURSE AVG** | Time divided by course distance. Differs from the watch's own Avg Pace on purpose. |
 | **LAST MI / LAST KM / LAP PACE** | Right-hand pace. Choose in settings. Shows AVG (1ST) dimmed until the first full mile. |
+| **STEP AVG / LEFT / STEP** | During a workout the screen follows the step: the right-hand pace is the step's average (your rep split), and the timer counts down the time left in a timed step (LEFT) or counts up in a distance or open step (STEP). The overall time is on the watch's own pages. |
 
 Colours follow the activity's background setting (light or dark). Units follow the watch's System > Units.
 
@@ -82,11 +83,11 @@ Getting the course onto the watch: most races publish a GPX. Import it in Garmin
 |---|---|
 | **Goal pace** | For runs without a workout. Minutes:seconds per mile (per km if the watch shows metric pace), e.g. `9:20`. Used when no workout target is active. Blank = off. |
 | **Goal pace leeway** | Seconds per mile/km that still count as on pace. Default 10. |
-| **Goal heart rate** | For easy and recovery runs: judge heart rate instead of pace. `2` = zone 2 (the watch's running zones), `1-2` = zones 1 to 2, `130-145` = a bpm range, `145` = only warn above 145 (no HR LOW). Wins over the goal pace; a workout target wins over both. On workout steps with a pace target, the top of the range (148 in `130-148`) becomes a ceiling: the HR number in the bottom row turns red above it. Garmin shows a workout's secondary HR target but never alerts on it, and data fields can't read it. Blank = off. |
+| **Goal heart rate** | For easy and recovery runs: judge heart rate instead of pace. `2` = zone 2 (the watch's running zones), `1-2` = zones 1 to 2, `130-145` = a bpm range, `145` = only warn above 145 (no HR LOW). Wins over the goal pace; a workout target wins over both. On workout steps with a pace target, the top of the range (148 in `130-148`) becomes a ceiling: the HR number in the bottom row turns white on red above it. Garmin shows a workout's secondary HR target but never alerts on it, and data fields can't read it. Blank = off. |
 | **Vibrate when you drift off pace or heart rate** | Off / goals only (default) / always. Workouts already alert on their own. Buzzes once the verdict has held 10 s, at most once per 15 s. |
 | **Race distance** | e.g. `13.11` (miles) or `21.1` (km). The finish then reads exactly this even if the course file measures a little long or short. Only applies when the loaded course is within 5% of it. **Set back to 0 after the race.** |
 | **Big number shows** | Distance run (default) or distance to go. |
-| **Right-hand pace** | Last mile or km (watch units, default), last mile, last km, or lap pace on course distance. |
+| **Right-hand pace** | Rolling last mile/km (watch units, default), rolling last mile, rolling last km, or lap average (since the lap or workout step started). All use course distance when a course is loaded. |
 | **ON PACE band: seconds of pace to average** | Default 30. Higher is steadier but slower to react. |
 
 ## What gets recorded
