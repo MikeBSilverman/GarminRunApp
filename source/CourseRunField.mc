@@ -662,7 +662,11 @@ class CourseRunField extends WatchUi.DataField {
         var kx = Layout.pct(w, 76);
         dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
         dc.drawText(tx, Layout.pct(h, 79), Layout.rowFont(h), Fmt.timerShort(_timerMs), vc);
+        if (_target.hrOverCap(_hr)) {
+            dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
+        }
         dc.drawText(hx, Layout.pct(h, 79), Layout.rowFont(h), _hr != null ? _hr.toString() : "--", vc);
+        dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
         dc.drawText(kx, Layout.pct(h, 79), Layout.rowFont(h),
                     _cadence != null ? _cadence.toString() : "--", vc);
         dc.setColor(dim, Graphics.COLOR_TRANSPARENT);

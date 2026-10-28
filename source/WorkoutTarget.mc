@@ -147,6 +147,14 @@ class WorkoutTarget {
         return _goalSpeed;
     }
 
+    // On a step judged on pace, the goal HR's top doubles as a ceiling: true
+    // when hr is over it (row 3 shows HR in red). Workouts often carry HR as
+    // a secondary target, which data fields can't read and the watch shows
+    // but never alerts on.
+    function hrOverCap(hr as Number or Null) as Boolean {
+        return kind == KIND_PACE && !isRest && _goalHrHi > 0.0 && hr != null && hr > _goalHrHi;
+    }
+
     hidden function applyGoal() as Void {
         if (kind != KIND_NONE || isRest) {
             return;

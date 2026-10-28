@@ -82,7 +82,7 @@ Getting the course onto the watch: most races publish a GPX. Import it in Garmin
 |---|---|
 | **Goal pace** | For runs without a workout. Minutes:seconds per mile (per km if the watch shows metric pace), e.g. `9:20`. Used when no workout target is active. Blank = off. |
 | **Goal pace leeway** | Seconds per mile/km that still count as on pace. Default 10. |
-| **Goal heart rate** | For easy and recovery runs: judge heart rate instead of pace. `2` = zone 2 (the watch's running zones), `1-2` = zones 1 to 2, `130-145` = a bpm range, `145` = only warn above 145 (no HR LOW). Wins over the goal pace; a workout target wins over both. Blank = off. |
+| **Goal heart rate** | For easy and recovery runs: judge heart rate instead of pace. `2` = zone 2 (the watch's running zones), `1-2` = zones 1 to 2, `130-145` = a bpm range, `145` = only warn above 145 (no HR LOW). Wins over the goal pace; a workout target wins over both. On workout steps with a pace target, the top of the range (148 in `130-148`) becomes a ceiling: the HR number in the bottom row turns red above it. Garmin shows a workout's secondary HR target but never alerts on it, and data fields can't read it. Blank = off. |
 | **Vibrate when you drift off pace or heart rate** | Off / goals only (default) / always. Workouts already alert on their own. Buzzes once the verdict has held 10 s, at most once per 15 s. |
 | **Race distance** | e.g. `13.11` (miles) or `21.1` (km). The finish then reads exactly this even if the course file measures a little long or short. Only applies when the loaded course is within 5% of it. **Set back to 0 after the race.** |
 | **Big number shows** | Distance run (default) or distance to go. |

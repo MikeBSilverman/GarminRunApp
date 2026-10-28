@@ -606,6 +606,29 @@ module CourseRunTests {
         return true;
     }
 
+    // On a pace step the goal HR's top is a ceiling for the HR colour; not on
+    // HR steps (the band judges those), rest steps, or without a goal HR.
+    (:test)
+    function workoutTargetHrCap(logger as Logger) as Boolean {
+        var w = new WorkoutTarget();
+        w.setGoalHr("130-148");
+        Test.assert(!w.hrOverCap(170));                 // goal HR target: the band judges it
+        w.setFrom(Activity.WORKOUT_STEP_TARGET_SPEED, 3000, 3300, null);
+        Test.assert(w.kind == WorkoutTarget.KIND_PACE);
+        Test.assert(w.hrOverCap(149));
+        Test.assert(!w.hrOverCap(148));
+        Test.assert(!w.hrOverCap(null));
+        w.isRest = true;
+        Test.assert(!w.hrOverCap(170));
+        w.isRest = false;
+        w.setFrom(Activity.WORKOUT_STEP_TARGET_HEART_RATE, 240, 250, null);
+        Test.assert(w.kind == WorkoutTarget.KIND_HR && !w.hrOverCap(170));
+        var n = new WorkoutTarget();                    // no goal HR: never
+        n.setFrom(Activity.WORKOUT_STEP_TARGET_SPEED, 3000, 3300, null);
+        Test.assert(!n.hrOverCap(200));
+        return true;
+    }
+
     // ---- Robustness: hostile and degenerate inputs -------------------------
 
     // Garbage from the watch must never throw or produce negative distance.

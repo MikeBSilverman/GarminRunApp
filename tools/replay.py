@@ -213,6 +213,11 @@ class WorkoutTarget:
             self.low, self.high = min(self.low, self.high), max(self.low, self.high)
             self.kind = "hr"
 
+    def hr_over_cap(self, hr):
+        """hrOverCap(): goal HR top as a ceiling on pace-target steps."""
+        return (self.kind == "pace" and not self.rest and self.goal_hr is not None
+                and hr is not None and hr > self.goal_hr[1])
+
     def stop_speed(self):
         return self.low * self.STOP_FRACTION if self.kind == "pace" and self.low > 0 else self.STOP_SPEED
 
@@ -699,6 +704,7 @@ def replay_band(run, dist, modes, a, unit):
 
         s = segs[-1]
         s["count"][status] += 1
+        s["cap"] += int(running and tgt.hr_over_cap(r.get("heart_rate")))
         s["t1"], s["d1"] = t_ms, d
         if running and r.get("band_status") is not None:
             s["rec"] += 1
@@ -728,7 +734,7 @@ def new_segment(label, tgt, t_ms, d, unit):
     elif tgt.kind == "hr":
         rng = f"{tgt.low:.0f}-{tgt.high:.0f} bpm" if tgt.low > 0 else f"under {tgt.high:.0f} bpm"
     return {"label": label, "range": rng, "t0": t_ms, "d0": d, "t1": t_ms, "d1": d,
-            "count": {NONE: 0, ON: 0, FAST: 0, SLOW: 0}, "alerts": 0, "rec": 0, "agree": 0}
+            "count": {NONE: 0, ON: 0, FAST: 0, SLOW: 0}, "alerts": 0, "rec": 0, "agree": 0, "cap": 0}
 
 
 # ---- reports ----------------------------------------------------------------
@@ -765,16 +771,19 @@ def native_alerts(run, segs):
 def report_segments(segs, run, a, unit, unit_name):
     rec = any(s["rec"] for s in segs)
     print(f"\n{'segment':12s} {'time':>6s} {'target /' + unit_name:>13s} {'actual':>7s}  {'ON':>4s} "
-          f"{'SLOW DN':>7s} {'SPEED UP':>8s} {'--':>4s}  alerts  native hi/lo" + ("  match" if rec else ""))
+          f"{'SLOW DN':>7s} {'SPEED UP':>8s} {'--':>4s}  alerts  native hi/lo" + ("  match" if rec else "")
+          + ("  HR>cap" if a.goal_hr else ""))
     for s, (hi, lo) in zip(segs, native_alerts(run, segs)):
         dt, dd = (s["t1"] - s["t0"]) / 1000.0, s["d1"] - s["d0"]
         c = s["count"]
         actual = fmt_pace(dt / dd * unit) if dd > 10 else "--:--"
         print(f"{s['label'][:12]:12s} {fmt_pace(dt):>6s} {s['range']:>13s} {actual:>7s}  {c[ON]:4d} "
               f"{c[FAST]:7d} {c[SLOW]:8d} {c[NONE]:4d}  {s['alerts']:6d}  {hi:>8d}/{lo}"
-              + (f"  {100 * s['agree'] // s['rec']:4d}%" if s["rec"] else ""))
+              + (f"  {100 * s['agree'] // s['rec']:4d}%" if s["rec"] else ("       " if rec else ""))
+              + (f"  {s['cap']:6d}" if a.goal_hr else ""))
     print(f"  seconds in each band state; alerts with the alerts setting '{a.alerts}'; "
-          "native = the Run app's own pace alerts")
+          "native = the Run app's own pace alerts"
+          + ("; HR>cap = seconds HR shows red on pace steps" if a.goal_hr else ""))
 
 
 def report_miles(timeline, goal_speed, unit, unit_name):

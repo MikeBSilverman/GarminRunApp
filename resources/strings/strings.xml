@@ -5,7 +5,7 @@
     <string id="GoalTolTitle">Goal pace leeway (seconds)</string>
     <string id="GoalTolPrompt">How far from the goal pace still counts as ON PACE. Default 10 seconds per mile/km.</string>
     <string id="GoalHrTitle">Goal heart rate instead of pace (e.g. 2 or 130-145)</string>
-    <string id="GoalHrPrompt">For easy and recovery runs without a workout. 2 = your heart rate zone 2 (from the watch's running zones), 1-2 = zones 1 to 2, 130-145 = a range in bpm, 145 = only warn above 145. When set, the band says HR OK / HR HIGH / HR LOW instead of judging pace, even if a goal pace is set. Leave blank to use the goal pace.</string>
+    <string id="GoalHrPrompt">For easy and recovery runs without a workout. 2 = your heart rate zone 2 (from the watch's running zones), 1-2 = zones 1 to 2, 130-145 = a range in bpm, 145 = only warn above 145. When set, the band says HR OK / HR HIGH / HR LOW instead of judging pace, even if a goal pace is set. Leave blank to use the goal pace. During workout steps with a pace target, the top of this range is an HR ceiling: the HR number turns red above it.</string>
     <string id="AlertsTitle">Vibrate when you drift off pace or heart rate</string>
     <string id="AlertsOff">Off</string>
     <string id="AlertsGoal">Goals only (workouts alert on their own)</string>
