@@ -42,6 +42,7 @@ class CourseRunField extends WatchUi.DataField {
     hidden var _gpsBuf as PaceBuffer;   // GPS distance: the band's current speed
     hidden var _gpsDist as Float = 0.0;
     hidden var _target as WorkoutTarget;
+    hidden var _gel as GelReminder;
     hidden var _fit as FitRecorder;
 
     hidden var _timerMs as Number = 0;
@@ -99,6 +100,7 @@ class CourseRunField extends WatchUi.DataField {
         _buf = new PaceBuffer(BUFFER_SLOTS, SAMPLE_MS);
         _gpsBuf = new PaceBuffer(GPS_SLOTS, SAMPLE_MS);
         _target = new WorkoutTarget();
+        _gel = new GelReminder();
         _treadmill = isTreadmill();
         cacheDeviceSettings();
         _fit = new FitRecorder(self, _distUnit);
@@ -127,6 +129,7 @@ class CourseRunField extends WatchUi.DataField {
         _goalTolSec = readFloat("goalTolerance", 10.0);
         _goalSec = Fmt.parsePace(readString("goalPace"));
         _alerts = readFloat("alerts", 1.0).toNumber();
+        _gel.setTimes(readFloat("gelFirst", 0.0).toNumber(), readFloat("gelEvery", 30.0).toNumber());
 
         _tracker.setOfficialLength(_officialLen * _distUnit);
         var kind = _target.kind;
@@ -193,6 +196,7 @@ class CourseRunField extends WatchUi.DataField {
         _lapStartDist = 0.0;
         _lastSplitIdx = 0;
         _splitUntilMs = 0;
+        _gel.reset();
         _lastSaveMs = 0;
         _lastAlertStatus = WorkoutTarget.STATUS_NONE;
         _lastAlertMs = -100000;
@@ -266,6 +270,17 @@ class CourseRunField extends WatchUi.DataField {
             _fit.update(_tracker.courseDist, _timerMs);
             trackStop(info.currentSpeed);
             checkSplit();
+            if (_gel.check(_timerMs)) {
+                buzz(Attention.TONE_ALERT_HI);
+                // Over whichever data page is showing; the pill on this
+                // page stays for the minute either way.
+                if (self has :showAlert) {
+                    try {
+                        showAlert(new GelAlert(_gel.count));
+                    } catch (e) {
+                    }
+                }
+            }
             if (_timerMs - _lastSaveMs >= SAVE_EVERY_MS) {
                 saveState();
             }
@@ -366,6 +381,7 @@ class CourseRunField extends WatchUi.DataField {
         _stepStartMs = rs.stepStartMs;
         _stepStartDist = rs.stepStartDist <= cd ? rs.stepStartDist : cd;
         _lastSplitIdx = (cd / _paceUnit).toNumber();
+        _gel.skipTo(_timerMs);
         _fit.onLap(_lapStartDist);
         _gpsDist = _tracker.lastGps();
         _buf.add(rs.timerMs, cd);
@@ -425,13 +441,17 @@ class CourseRunField extends WatchUi.DataField {
         }
         _lastAlertStatus = status;
         _lastAlertMs = _timerMs;
+        buzz(status == WorkoutTarget.STATUS_FAST ? Attention.TONE_ALERT_HI : Attention.TONE_ALERT_LO);
+    }
+
+    // Follows the watch's vibration and tone settings.
+    hidden function buzz(tone as Attention.Tone) as Void {
         var ds = System.getDeviceSettings();
         if (ds.vibrateOn && Attention has :vibrate) {
             Attention.vibrate([new Attention.VibeProfile(60, 400)] as Array<Attention.VibeProfile>);
         }
         if (ds.tonesOn && Attention has :playTone) {
-            Attention.playTone(status == WorkoutTarget.STATUS_FAST
-                               ? Attention.TONE_ALERT_HI : Attention.TONE_ALERT_LO);
+            Attention.playTone(tone);
         }
     }
 
@@ -608,6 +628,17 @@ class CourseRunField extends WatchUi.DataField {
                 label = label + " · FIN " + Fmt.timer(fin);
             }
         }
+        if (_gel.showing(_timerMs)) {
+            // Fuel reminder: black on an orange pill for a minute, over the
+            // split flash too (the watch's own lap screen shows the split).
+            label = "GEL " + _gel.count.toString();
+            var dims = dc.getTextDimensions(label, Layout.labelFont());
+            var pw = dims[0] + Layout.pct(w, 8);
+            var ph = dims[1] * 8 / 10;   // full font height touches row 2
+            dc.setColor(Graphics.COLOR_ORANGE, Graphics.COLOR_ORANGE);
+            dc.fillRoundedRectangle(cx - pw / 2, Layout.pct(h, 53) - ph / 2, pw, ph, ph / 4);
+            labelColor = Graphics.COLOR_BLACK;
+        }
         dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
         dc.drawText(cx, Layout.pct(h, 53), Layout.labelFont(), label, vc);
 
@@ -780,6 +811,9 @@ class CourseRunField extends WatchUi.DataField {
         var label;
         if (_timerMs == 0) {
             label = _tracker.hasCourse() ? "COURSE READY" : (_treadmill ? "TREADMILL" : "NO COURSE");
+        } else if (_gel.showing(_timerMs)) {
+            label = "GEL " + _gel.count.toString();
+            labelColor = Graphics.COLOR_ORANGE;
         } else if (_tracker.mode == CourseTracker.MODE_COURSE) {
             label = "COURSE" + unit;
         } else if (_tracker.mode == CourseTracker.MODE_OFF) {

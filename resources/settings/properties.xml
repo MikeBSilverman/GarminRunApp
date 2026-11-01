@@ -7,4 +7,6 @@
     <property id="goalTolerance" type="number">10</property>
     <property id="goalHr" type="string"></property>
     <property id="alerts" type="number">1</property>
+    <property id="gelFirst" type="number">0</property>
+    <property id="gelEvery" type="number">30</property>
 </properties>

@@ -646,6 +646,33 @@ module CourseRunTests {
         return true;
     }
 
+    // Gel reminders: first at 45 min, then every 30, once each, shown a
+    // minute; off at 0; a restore catches up without repeating.
+    (:test)
+    function gelReminder(logger as Logger) as Boolean {
+        var g = new GelReminder();
+        Test.assert(!g.check(5000000));                 // off by default
+        g.setTimes(45, 30);
+        Test.assert(!g.check(44 * 60000));
+        Test.assert(g.check(45 * 60000) && g.count == 1);
+        Test.assert(!g.check(45 * 60000 + 1000));       // once
+        Test.assert(g.showing(45 * 60000 + 59000) && !g.showing(46 * 60000));
+        Test.assert(!g.check(74 * 60000));
+        Test.assert(g.check(75 * 60000) && g.count == 2);
+        Test.assertEqual(g.dueBy(135 * 60000), 4);
+        g.reset();
+        g.skipTo(80 * 60000);                           // reloaded mid-run
+        Test.assert(g.count == 2 && !g.showing(80 * 60000) && !g.check(80 * 60000));
+        Test.assert(g.check(105 * 60000) && g.count == 3);
+        g.setTimes(45, 0);                              // just one
+        Test.assertEqual(g.dueBy(300 * 60000), 1);
+        g.setTimes(0, 30);
+        Test.assertEqual(g.dueBy(300 * 60000), 0);
+        g.setTimes(-5, -5);                             // junk = off
+        Test.assertEqual(g.dueBy(300 * 60000), 0);
+        return true;
+    }
+
     // ---- Robustness: hostile and degenerate inputs -------------------------
 
     // Garbage from the watch must never throw or produce negative distance.

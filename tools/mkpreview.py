@@ -1,7 +1,7 @@
 """Build a scratch copy of the app with seeded values for one screen state.
 
 Usage: python tools/mkpreview.py <scenario> [dark]
-Scenarios: prestart | goal | hrgoal | workout | workoutcap | rest | split | mismatch | offcourse | togo | compact
+Scenarios: prestart | goal | hrgoal | workout | workoutcap | gel | rest | split | mismatch | offcourse | togo | compact
            | treadpre | treadmill
 Output: bin/preview/ (a full project copy with CourseRunField.mc patched)."""
 import sys, shutil, os
@@ -64,6 +64,11 @@ seeds = {
         _target.source = WorkoutTarget.SOURCE_WORKOUT; _target.hasWorkout = true; _target.stepLabel = "RUN";
         _target.stepMs = 420000; _stepStartMs = _timerMs - 200000; _stepStartDist = _tracker.courseDist - 640.0;
         _hr = 152; _target.evaluate(3.0, 152); _target.evaluate(3.0, 152);
+''',
+    "gel": common + '''
+        _target.setGoal(540.0, Fmt.M_PER_MI, 10.0);
+        _target.evaluate(2.98, 162);
+        _gel.setTimes(43, 30); _gel.check(_timerMs);
 ''',
     "rest": common + '''
         _target.hasWorkout = true; _target.isRest = true; _target.stepLabel = "RECOVERY";

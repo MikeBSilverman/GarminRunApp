@@ -15,6 +15,12 @@
             <listEntry value="2">@Strings.AlertsAlways</listEntry>
         </settingConfig>
     </setting>
+    <setting propertyKey="@Properties.gelFirst" title="@Strings.GelFirstTitle" prompt="@Strings.GelFirstPrompt">
+        <settingConfig type="numeric" min="0" max="300" />
+    </setting>
+    <setting propertyKey="@Properties.gelEvery" title="@Strings.GelEveryTitle" prompt="@Strings.GelEveryPrompt">
+        <settingConfig type="numeric" min="0" max="120" />
+    </setting>
     <setting propertyKey="@Properties.courseLength" title="@Strings.CourseLengthTitle" prompt="@Strings.CourseLengthPrompt">
         <settingConfig type="numeric" min="0" max="200" />
     </setting>
