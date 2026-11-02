@@ -673,6 +673,27 @@ module CourseRunTests {
         return true;
     }
 
+    // On-watch settings: list focus and picker start positions.
+    (:test)
+    function settingsIndexes(logger as Logger) as Boolean {
+        var v = [0, 30, 40, 45, 60] as Array<Number>;
+        Test.assertEqual(SettingsLists.indexOf(v, 45), 3);
+        Test.assertEqual(SettingsLists.indexOf(v, 50), 3);     // phone-set value between steps
+        Test.assertEqual(SettingsLists.indexOf(v, -5), 0);
+        Test.assertEqual(SettingsLists.indexOf(v, 500), 4);
+        var secs = new NumberFactory(0, 55, 5, true);
+        Test.assertEqual(secs.getSize(), 12);
+        Test.assertEqual(secs.indexOf(20), 4);
+        Test.assertEqual(secs.indexOf(17), 3);                 // 9:17 starts at 9:15
+        Test.assertEqual(secs.getValue(4), 20);
+        var bpm = new NumberFactory(90, 200, 1, false);
+        Test.assertEqual(bpm.indexOf(148), 58);
+        Test.assertEqual(bpm.indexOf(40), 0);
+        Test.assertEqual(bpm.indexOf(250), 110);
+        Test.assertEqual(SettingsLists.all().size(), 6);
+        return true;
+    }
+
     // ---- Robustness: hostile and degenerate inputs -------------------------
 
     // Garbage from the watch must never throw or produce negative distance.

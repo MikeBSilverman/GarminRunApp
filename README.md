@@ -79,6 +79,8 @@ Getting the course onto the watch: most races publish a GPX. Import it in Garmin
 
 ## Settings
 
+Change them in the Connect IQ phone app, or on the watch from the Run activity's settings menu (CourseRun's Connect IQ settings entry): lists and pickers for goal pace, goal heart rate (zone, ceiling or bpm range), gel reminders, pace leeway, drift alerts, right-hand pace and the big number. Course length and smoothing are phone-only.
+
 | Setting | Meaning |
 |---|---|
 | **Goal pace** | For runs without a workout. Minutes:seconds per mile (per km if the watch shows metric pace), e.g. `9:20`. Used when no workout target is active. Blank = off. |

@@ -14,7 +14,12 @@ class CourseRunApp extends Application.AppBase {
         return [_field];
     }
 
-    // Settings changed in Garmin Connect / Connect IQ app.
+    // On-watch settings, from the activity's settings menu (SettingsMenu.mc).
+    function getSettingsView() as [WatchUi.Views] or [WatchUi.Views, WatchUi.InputDelegates] or Null {
+        return [new SettingsRoot(), new SettingsRootDelegate()];
+    }
+
+    // Settings changed in Garmin Connect / Connect IQ app, or on the watch.
     function onSettingsChanged() as Void {
         if (_field != null) {
             (_field as CourseRunField).loadSettings();
