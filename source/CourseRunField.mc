@@ -642,20 +642,27 @@ class CourseRunField extends WatchUi.DataField {
         dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
         dc.drawText(cx, Layout.pct(h, 53), Layout.labelFont(), label, vc);
 
-        // Row 2: course average pace | rolling / lap pace.
+        // Row 2: course average pace | rolling / lap pace. In a workout the
+        // overall average is no use, so the left is the step's average on
+        // course distance (the rep split) and the right the rolling pace.
         var avg = avgSecPerMeter();
         var lx = Layout.pct(w, 30);
         var rx = Layout.pct(w, 70);
+        var leftLabel = _tracker.mode == CourseTracker.MODE_COURSE ? "COURSE AVG" : "AVG PACE";
+        var leftSpm = avg;
         var rightLabel;
         var rightSpm = null;
         var workout = inWorkout();
         if (workout) {
-            // The step's average on course distance: the rep split.
-            rightLabel = "STEP AVG";
+            leftLabel = "STEP AVG";
+            leftSpm = null;
             var sd = _tracker.courseDist - _stepStartDist;
             if (sd > 10.0 && _timerMs > _stepStartMs) {
-                rightSpm = (_timerMs - _stepStartMs) / 1000.0 / sd;
+                leftSpm = (_timerMs - _stepStartMs) / 1000.0 / sd;
             }
+            var wm = rollingWindowM();
+            rightLabel = wm == Fmt.M_PER_MI ? "LAST MI" : "LAST KM";
+            rightSpm = _buf.rollingSecPerMeter(_timerMs, _tracker.courseDist, wm);
         } else if (_rollingUnit == 3) {
             rightLabel = "LAP PACE";
             var ld = _tracker.courseDist - _lapStartDist;
@@ -670,7 +677,7 @@ class CourseRunField extends WatchUi.DataField {
 
         dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
         dc.drawText(lx, Layout.pct(h, 61), Layout.valueFont(h),
-                    Fmt.pace(avg != null ? avg * _paceUnit : null), vc);
+                    Fmt.pace(leftSpm != null ? leftSpm * _paceUnit : null), vc);
         if (rightSpm != null) {
             dc.drawText(rx, Layout.pct(h, 61), Layout.valueFont(h), Fmt.pace(rightSpm * _paceUnit), vc);
         } else if (workout) {
@@ -685,8 +692,7 @@ class CourseRunField extends WatchUi.DataField {
             }
         }
         dc.setColor(dim, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(lx, Layout.pct(h, 69), Layout.labelFont(),
-                    _tracker.mode == CourseTracker.MODE_COURSE ? "COURSE AVG" : "AVG PACE", vc);
+        dc.drawText(lx, Layout.pct(h, 69), Layout.labelFont(), leftLabel, vc);
         dc.drawText(rx, Layout.pct(h, 69), Layout.labelFont(), rightLabel, vc);
         dc.drawLine(cx, Layout.pct(h, 57), cx, Layout.pct(h, 74));
 

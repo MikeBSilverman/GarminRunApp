@@ -39,7 +39,7 @@ Race courses are measured along the shortest legal line and nobody runs it. GPS 
 | **MI 5  8:52** | Flashes for 6 s at each course mile (or km) with that split. Native auto-laps use GPS distance, so they drift from the mile markers; these don't. |
 | **COURSE AVG** | Time divided by course distance. Differs from the watch's own Avg Pace on purpose. |
 | **LAST MI / LAST KM / LAP PACE** | Right-hand pace. Choose in settings. Shows AVG (1ST) dimmed until the first full mile. |
-| **STEP AVG / LEFT / STEP** | During a workout the screen follows the step: the right-hand pace is the step's average (your rep split), and the timer counts down the time left in a timed step (LEFT) or counts up in a distance or open step (STEP). The overall time is on the watch's own pages. |
+| **STEP AVG / LEFT / STEP** | During a workout the screen follows the step: the left-hand pace is the step's average (your rep split) in place of the overall average, the right-hand pace is the rolling last mile/km as usual, and the timer counts down the time left in a timed step (LEFT) or counts up in a distance or open step (STEP). The overall time is on the watch's own pages. |
 
 Colours follow the activity's background setting (light or dark). Units follow the watch's System > Units.
 
@@ -79,7 +79,7 @@ Getting the course onto the watch: most races publish a GPX. Import it in Garmin
 
 ## Settings
 
-Change them in the Connect IQ phone app, or on the watch from the Run activity's settings menu (CourseRun's Connect IQ settings entry): lists and pickers for goal pace, goal heart rate (zone, ceiling or bpm range), gel reminders, pace leeway, drift alerts, right-hand pace and the big number. Course length and smoothing are phone-only.
+Change them in the Connect IQ phone app, or on the watch: open **Run**, hold **UP**, and pick **Connect IQ** > **CourseRun** in that first menu (it sits beside Run Settings, not inside it). Lists and pickers cover goal pace, goal heart rate (zone, ceiling or bpm range), gel reminders, pace leeway, drift alerts, right-hand pace and the big number. Course length and smoothing are phone-only.
 
 | Setting | Meaning |
 |---|---|
