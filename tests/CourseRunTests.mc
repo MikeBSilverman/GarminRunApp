@@ -67,6 +67,16 @@ module CourseRunTests {
         var v = b.smoothedSpeed(t, d, 30000);
         Test.assert(near(roll, 0.25, 0.001));
         Test.assert(near(v, 4.0, 0.01));
+        // A step that started 10 s ago (workout row 2 clips the window to the
+        // time in the step): a 10 s window covers only the fast part, where
+        // a 30 s window straddling a step change would blend it.
+        for (var s = 901; s <= 910; s++) {
+            d += 5.0;
+            t = s * 1000;
+            b.add(t, d);
+        }
+        Test.assert(near(b.smoothedSpeed(t, d, 10000), 5.0, 0.01));
+        Test.assert((b.smoothedSpeed(t, d, 30000) as Float) < 4.7);
         return true;
     }
 
@@ -483,7 +493,7 @@ module CourseRunTests {
         return true;
     }
 
-    // Firmware that hands speed targets over in m/s (today's FR965 run, the
+    // Firmware that hands speed targets over in m/s (an FR965 run with v0.2.0, the
     // simulator): read as m/s, not divided down to a crawl that makes
     // standing still read as SLOW DOWN.
     (:test)
@@ -578,19 +588,22 @@ module CourseRunTests {
         return true;
     }
 
-    // Goal HR wins over goal pace; clearing it brings the pace back; a
-    // ceiling-only goal never says HR LOW.
+    // Goal pace leads, with the goal HR top as a ceiling; without a pace the
+    // goal HR is the target; a ceiling-only goal never says HR LOW.
     (:test)
     function workoutTargetGoalHr(logger as Logger) as Boolean {
         var w = new WorkoutTarget();
         w.setGoal(540.0, Fmt.M_PER_MI, 10.0);
         w.setGoalHr("130-145");
+        Test.assert(w.kind == WorkoutTarget.KIND_PACE && w.source == WorkoutTarget.SOURCE_GOAL);
+        Test.assert(w.hrOverCap(146) && !w.hrOverCap(145));
+
+        w.setGoal(0.0, Fmt.M_PER_MI, 10.0);   // no pace: HR is the target
         Test.assert(w.kind == WorkoutTarget.KIND_HR && w.source == WorkoutTarget.SOURCE_GOAL);
         Test.assert(near(w.low, 130.0, 0.01) && near(w.high, 145.0, 0.01));
+        Test.assert(!w.hrOverCap(170));
         Test.assert(w.evaluate(3.0, 150) == WorkoutTarget.STATUS_FAST);
         Test.assert(w.evaluate(3.0, 120) == WorkoutTarget.STATUS_SLOW);
-        // The goal pace still drives AHEAD/BEHIND bookkeeping.
-        Test.assert(w.goalSpeed() > 0.0);
 
         w.setGoalHr("150");
         Test.assert(near(w.low, 0.0, 0.01) && near(w.high, 150.0, 0.01));
@@ -598,10 +611,8 @@ module CourseRunTests {
         Test.assert(w.evaluate(null, 60) == WorkoutTarget.STATUS_ON);
         Test.assert(w.evaluate(null, 160) == WorkoutTarget.STATUS_FAST);
 
-        w.setGoalHr("");
-        Test.assert(w.kind == WorkoutTarget.KIND_PACE && w.source == WorkoutTarget.SOURCE_GOAL);
+        w.setGoalHr("");                      // clearing HR too: no goal at all
         Test.assert(!w.hasGoalHr());
-        w.setGoal(0.0, Fmt.M_PER_MI, 10.0);   // clearing the pace too: no goal at all
         Test.assert(w.kind == WorkoutTarget.KIND_NONE);
         return true;
     }
@@ -685,7 +696,7 @@ module CourseRunTests {
         Test.assertEqual(secs.getSize(), 12);
         Test.assertEqual(secs.indexOf(20), 4);
         Test.assertEqual(secs.indexOf(17), 3);                 // 9:17 starts at 9:15
-        Test.assertEqual(secs.getValue(4), 20);
+        Test.assertEqual(secs.getValue(4) as Number, 20);
         var bpm = new NumberFactory(90, 200, 1, false);
         Test.assertEqual(bpm.indexOf(148), 58);
         Test.assertEqual(bpm.indexOf(40), 0);

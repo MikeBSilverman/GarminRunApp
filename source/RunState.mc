@@ -11,6 +11,7 @@ import Toybox.Lang;
 // where tracker is CourseTracker.snapshot(), validated by CourseTracker.restore().
 class RunState {
     hidden const VER = 2;
+    hidden const MAX_M = 1000000.0;   // same sanity bound as CourseTracker
 
     var timerMs as Number = 0;
     var lapStartMs as Number = 0;
@@ -55,9 +56,9 @@ class RunState {
         timerMs = t;
         lapStartMs = lapMs >= 0 && lapMs <= t ? lapMs : t;
         // NaN != NaN; and in Monkey C NaN >= 0.0 is true, so test it first.
-        lapStartDist = ld != ld || ld < 0.0 || ld > 1.0e6 ? 0.0 : ld;
+        lapStartDist = ld != ld || ld < 0.0 || ld > MAX_M ? 0.0 : ld;
         stepStartMs = stepMs >= 0 && stepMs <= t ? stepMs : 0;
-        stepStartDist = sd != sd || sd < 0.0 || sd > 1.0e6 ? 0.0 : sd;
+        stepStartDist = sd != sd || sd < 0.0 || sd > MAX_M ? 0.0 : sd;
         tracker = s[7] as Object or Null;
         return true;
     }

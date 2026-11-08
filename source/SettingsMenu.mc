@@ -1,4 +1,3 @@
-import Toybox.Application;
 import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.System;
@@ -33,35 +32,40 @@ module SettingsLists {
         return l instanceof String ? l : WatchUi.loadResource(l as ResourceId) as String;
     }
 
-    function getNum(key as String, dflt as Number) as Number {
-        try {
-            var v = Application.Properties.getValue(key);
-            if (v instanceof Number || v instanceof Float) {
-                return v.toNumber();
-            }
-        } catch (e) {
-        }
-        return dflt;
+    // A list setting's value. A missing key reads as its properties.xml
+    // default, so the first list value only covers a throwing firmware.
+    function num(def as Array) as Number {
+        return Props.num(def[0] as String, ((def[2] as Array<Number>)[0]).toFloat()).toNumber();
     }
 
-    function getStr(key as String) as String {
-        try {
-            var v = Application.Properties.getValue(key);
-            if (v instanceof String) {
-                return v;
-            }
-        } catch (e) {
+    // The root item's sublabel for a list def, "goalPace" or "goalHr".
+    function sub(key as String or Array) as String {
+        if (key instanceof Array) {
+            return listSub(key);
         }
-        return "";
+        return key.equals("goalPace") ? paceSub() : hrSub();
     }
 
-    function set(key as String, value as Number or String) as Void {
-        try {
-            Application.Properties.setValue(key, value);
-        } catch (e) {
-            return;
+    // Saves a choice, refreshes the root item's sublabel and closes `pops` views.
+    function commit(key as String, value as Number or String, parent as WatchUi.MenuItem,
+                    subKey as String or Array, pops as Number) as Void {
+        Props.set(key, value);
+        parent.setSubLabel(sub(subKey));
+        for (var i = 0; i < pops; i++) {
+            WatchUi.popView(WatchUi.SLIDE_RIGHT);
         }
-        (Application.getApp() as CourseRunApp).onSettingsChanged();
+    }
+
+    // White centred picker text: a title (bottom-aligned), a separator or an entry.
+    function text(t as String, font as Graphics.FontDefinition or Null, title as Boolean) as WatchUi.Text {
+        var opts = {:text => t,
+                    :locX => WatchUi.LAYOUT_HALIGN_CENTER,
+                    :locY => title ? WatchUi.LAYOUT_VALIGN_BOTTOM : WatchUi.LAYOUT_VALIGN_CENTER,
+                    :color => Graphics.COLOR_WHITE};
+        if (font != null) {
+            opts[:font] = font;
+        }
+        return new WatchUi.Text(opts);
     }
 
     // Index of v in values, or of the nearest value below it, or 0.
@@ -78,9 +82,7 @@ module SettingsLists {
     function listSub(def as Array) as String {
         var values = def[2] as Array<Number>;
         var labels = def[3] as Array;
-        var dflt = (def[0] as String).equals("gelEvery") ? 30 : ((def[0] as String).equals("goalTolerance") ? 10
-                   : ((def[0] as String).equals("alerts") ? 1 : 0));
-        var v = getNum(def[0] as String, dflt);
+        var v = num(def);
         for (var i = 0; i < values.size(); i++) {
             if (values[i] == v) {
                 return label(labels[i] as String or ResourceId);
@@ -94,23 +96,23 @@ module SettingsLists {
     }
 
     function paceSub() as String {
-        var sec = Fmt.parsePace(getStr("goalPace"));
+        var sec = Fmt.parsePace(Props.str("goalPace"));
         return sec > 0.0 ? Fmt.pace(sec) + paceUnitText() : "Off";
     }
 
     // The goal HR setting text as people read it.
     function hrSub() as String {
-        var s = Fmt.trim(getStr("goalHr"));
+        var s = Fmt.trim(Props.str("goalHr"));
         if (s.length() == 0) {
             return "Off";
         }
-        var dash = s.find("-");
-        var hi = (dash != null ? s.substring(dash + 1, s.length()) : s) as String;
-        var n = hi.toNumber();
+        var parts = Fmt.splitDash(s);
+        var range = parts[0] != null;
+        var n = parts[1].toNumber();
         if (n != null && n <= 5) {
-            return (dash != null ? "Zones " : "Zone ") + s;
+            return (range ? "Zones " : "Zone ") + s;
         }
-        return (dash != null ? s : "Under " + s) + " bpm";
+        return (range ? s : "Under " + s) + " bpm";
     }
 }
 
@@ -121,7 +123,7 @@ class SettingsRoot extends WatchUi.Menu2 {
         addItem(new WatchUi.MenuItem("Goal heart rate", SettingsLists.hrSub(), :hr, null));
         var defs = SettingsLists.all();
         for (var i = 0; i < defs.size(); i++) {
-            addItem(new WatchUi.MenuItem(defs[i][1] as String, SettingsLists.listSub(defs[i]), i, null));
+            addItem(new WatchUi.MenuItem(defs[i][1] as String, SettingsLists.listSub(defs[i]), defs[i], null));
         }
     }
 }
@@ -146,16 +148,15 @@ class SettingsRootDelegate extends WatchUi.Menu2InputDelegate {
             h.addItem(new WatchUi.MenuItem("Ceiling", "Only warn above", :ceiling, null));
             h.addItem(new WatchUi.MenuItem("Range", "Low and high bpm", :range, null));
             WatchUi.pushView(h, new HrMenuDelegate(item), WatchUi.SLIDE_LEFT);
-        } else if (id instanceof Number) {
-            var def = SettingsLists.all()[id];
+        } else if (id instanceof Array) {
+            var def = id;
             var values = def[2] as Array<Number>;
             var labels = def[3] as Array;
             var c = new WatchUi.Menu2({:title => def[1] as String});
             for (var i = 0; i < values.size(); i++) {
                 c.addItem(new WatchUi.MenuItem(SettingsLists.label(labels[i] as String or ResourceId), null, i, null));
             }
-            var cur = SettingsLists.getNum(def[0] as String, values[0]);
-            c.setFocus(SettingsLists.indexOf(values, cur));
+            c.setFocus(SettingsLists.indexOf(values, SettingsLists.num(def)));
             WatchUi.pushView(c, new ListMenuDelegate(item, def), WatchUi.SLIDE_LEFT);
         }
     }
@@ -173,9 +174,7 @@ class ListMenuDelegate extends WatchUi.Menu2InputDelegate {
 
     function onSelect(item as WatchUi.MenuItem) as Void {
         var values = _def[2] as Array<Number>;
-        SettingsLists.set(_def[0] as String, values[item.getId() as Number]);
-        _parent.setSubLabel(SettingsLists.listSub(_def));
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+        SettingsLists.commit(_def[0] as String, values[item.getId() as Number], _parent, _def, 1);
     }
 }
 
@@ -189,52 +188,20 @@ class PaceMenuDelegate extends WatchUi.Menu2InputDelegate {
 
     function onSelect(item as WatchUi.MenuItem) as Void {
         if (item.getId() == :off) {
-            SettingsLists.set("goalPace", "");
-            _parent.setSubLabel(SettingsLists.paceSub());
-            WatchUi.popView(WatchUi.SLIDE_RIGHT);
+            SettingsLists.commit("goalPace", "", _parent, "goalPace", 1);
             return;
         }
         // Minutes : seconds in 5 s steps, starting at the current goal.
-        var sec = Fmt.parsePace(SettingsLists.getStr("goalPace"));
+        var sec = Fmt.parsePace(Props.str("goalPace"));
         var s = sec > 0.0 ? (sec + 0.5).toNumber() : 540;
         var mins = new NumberFactory(4, 15, 1, false);
         var secs = new NumberFactory(0, 55, 5, true);
         var picker = new WatchUi.Picker({
-            :title => new WatchUi.Text({:text => "Goal pace" + SettingsLists.paceUnitText(),
-                                        :locX => WatchUi.LAYOUT_HALIGN_CENTER,
-                                        :locY => WatchUi.LAYOUT_VALIGN_BOTTOM,
-                                        :color => Graphics.COLOR_WHITE}),
-            :pattern => [mins, new WatchUi.Text({:text => ":", :font => Graphics.FONT_LARGE,
-                                                 :locX => WatchUi.LAYOUT_HALIGN_CENTER,
-                                                 :locY => WatchUi.LAYOUT_VALIGN_CENTER,
-                                                 :color => Graphics.COLOR_WHITE}), secs],
+            :title => SettingsLists.text("Goal pace" + SettingsLists.paceUnitText(), null, true),
+            :pattern => [mins, SettingsLists.text(":", Graphics.FONT_LARGE, false), secs],
             :defaults => [mins.indexOf(s / 60), 0, secs.indexOf(s % 60)]
         });
-        WatchUi.pushView(picker, new PacePickerDelegate(_parent), WatchUi.SLIDE_LEFT);
-    }
-}
-
-class PacePickerDelegate extends WatchUi.PickerDelegate {
-    hidden var _parent as WatchUi.MenuItem;
-
-    function initialize(parent as WatchUi.MenuItem) {
-        PickerDelegate.initialize();
-        _parent = parent;
-    }
-
-    function onAccept(values as Array) as Boolean {
-        var m = values[0] as Number;
-        var s = values[2] as Number;
-        SettingsLists.set("goalPace", m.toString() + ":" + Fmt.pad2(s));
-        _parent.setSubLabel(SettingsLists.paceSub());
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);   // the picker
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);   // Off / Set pace
-        return true;
-    }
-
-    function onCancel() as Boolean {
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
-        return true;
+        WatchUi.pushView(picker, new GoalPickerDelegate(_parent, "goalPace"), WatchUi.SLIDE_LEFT);
     }
 }
 
@@ -249,68 +216,60 @@ class HrMenuDelegate extends WatchUi.Menu2InputDelegate {
     function onSelect(item as WatchUi.MenuItem) as Void {
         var id = item.getId();
         if (id instanceof String) {
-            SettingsLists.set("goalHr", id);
-            _parent.setSubLabel(SettingsLists.hrSub());
-            WatchUi.popView(WatchUi.SLIDE_RIGHT);
+            SettingsLists.commit("goalHr", id, _parent, "goalHr", 1);
             return;
         }
         // Start from the current bpm goal (zones and blank start at 130-148).
-        var spec = Fmt.trim(SettingsLists.getStr("goalHr"));
-        var dash = spec.find("-");
-        var lo = (dash != null ? spec.substring(0, dash) : "") as String;
-        var hi = (dash != null ? spec.substring(dash + 1, spec.length()) : spec) as String;
-        var loN = lo.toNumber();
-        var hiN = hi.toNumber();
+        var parts = Fmt.splitDash(Fmt.trim(Props.str("goalHr")));
+        var loN = parts[0] != null ? (parts[0] as String).toNumber() : null;
+        var hiN = parts[1].toNumber();
         if (hiN == null || hiN < 90) {
             hiN = 148;
         }
         if (loN == null || loN < 80) {
             loN = 130;
         }
-        var title = new WatchUi.Text({:text => id == :range ? "Low - high bpm" : "Warn above bpm",
-                                      :locX => WatchUi.LAYOUT_HALIGN_CENTER,
-                                      :locY => WatchUi.LAYOUT_VALIGN_BOTTOM,
-                                      :color => Graphics.COLOR_WHITE});
+        var title = SettingsLists.text(id == :range ? "Low - high bpm" : "Warn above bpm", null, true);
         var hiF = new NumberFactory(90, 200, 1, false);
         var picker;
         if (id == :range) {
             var loF = new NumberFactory(80, 190, 1, false);
             picker = new WatchUi.Picker({
                 :title => title,
-                :pattern => [loF, new WatchUi.Text({:text => "-", :font => Graphics.FONT_LARGE,
-                                                    :locX => WatchUi.LAYOUT_HALIGN_CENTER,
-                                                    :locY => WatchUi.LAYOUT_VALIGN_CENTER,
-                                                    :color => Graphics.COLOR_WHITE}), hiF],
+                :pattern => [loF, SettingsLists.text("-", Graphics.FONT_LARGE, false), hiF],
                 :defaults => [loF.indexOf(loN), 0, hiF.indexOf(hiN)]
             });
         } else {
             picker = new WatchUi.Picker({:title => title, :pattern => [hiF], :defaults => [hiF.indexOf(hiN)]});
         }
-        WatchUi.pushView(picker, new HrPickerDelegate(_parent), WatchUi.SLIDE_LEFT);
+        WatchUi.pushView(picker, new GoalPickerDelegate(_parent, "goalHr"), WatchUi.SLIDE_LEFT);
     }
 }
 
-class HrPickerDelegate extends WatchUi.PickerDelegate {
+// Accepts a goal picker: pace as m:ss (minutes : seconds columns), HR as
+// one ceiling or a low - high pair. Closes the picker and the choice menu.
+class GoalPickerDelegate extends WatchUi.PickerDelegate {
     hidden var _parent as WatchUi.MenuItem;
+    hidden var _key as String;
 
-    function initialize(parent as WatchUi.MenuItem) {
+    function initialize(parent as WatchUi.MenuItem, key as String) {
         PickerDelegate.initialize();
         _parent = parent;
+        _key = key;
     }
 
     function onAccept(values as Array) as Boolean {
         var spec;
-        if (values.size() >= 3) {
+        if (_key.equals("goalPace")) {
+            spec = (values[0] as Number).toString() + ":" + Fmt.pad2(values[2] as Number);
+        } else if (values.size() >= 3) {
             var a = values[0] as Number;
             var b = values[2] as Number;
             spec = (a < b ? a : b).toString() + "-" + (a < b ? b : a).toString();
         } else {
             spec = (values[0] as Number).toString();
         }
-        SettingsLists.set("goalHr", spec);
-        _parent.setSubLabel(SettingsLists.hrSub());
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);   // the picker
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);   // the HR choices
+        SettingsLists.commit(_key, spec, _parent, _key, 2);
         return true;
     }
 
@@ -345,11 +304,7 @@ class NumberFactory extends WatchUi.PickerFactory {
 
     function getDrawable(index as Number, selected as Boolean) as WatchUi.Drawable or Null {
         var v = _lo + index * _step;
-        return new WatchUi.Text({:text => _pad ? Fmt.pad2(v) : v.toString(),
-                                 :font => Graphics.FONT_NUMBER_MILD,
-                                 :locX => WatchUi.LAYOUT_HALIGN_CENTER,
-                                 :locY => WatchUi.LAYOUT_VALIGN_CENTER,
-                                 :color => Graphics.COLOR_WHITE});
+        return SettingsLists.text(_pad ? Fmt.pad2(v) : v.toString(), Graphics.FONT_NUMBER_MILD, false);
     }
 
     // Index of the nearest step at or below v, clamped.

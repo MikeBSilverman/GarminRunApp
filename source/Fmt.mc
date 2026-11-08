@@ -4,6 +4,9 @@ import Toybox.Lang;
 module Fmt {
     const M_PER_MI = 1609.344;
     const M_PER_KM = 1000.0;
+    const PACE_MAX_SEC = 6000.0;   // 100 min per unit: shown as no pace
+    const MIN_SPEED = 0.3;         // m/s; slower reads as no pace
+    const MIN_PACE_M = 10.0;       // too little distance to divide by
 
     function pad2(n as Number) as String {
         return n < 10 ? "0" + n.toString() : n.toString();
@@ -11,7 +14,7 @@ module Fmt {
 
     // Seconds per unit -> "M:SS". Anything slower than 99:59 or null -> "--:--".
     function pace(secPerUnit as Float or Null) as String {
-        if (secPerUnit == null || secPerUnit <= 0.0 || secPerUnit >= 6000.0) {
+        if (secPerUnit == null || secPerUnit <= 0.0 || secPerUnit >= PACE_MAX_SEC) {
             return "--:--";
         }
         var s = (secPerUnit + 0.5).toNumber();
@@ -20,10 +23,15 @@ module Fmt {
 
     // m/s -> pace per `unitM` metres.
     function paceFromSpeed(speed as Float or Null, unitM as Float) as String {
-        if (speed == null || speed < 0.3) {
+        if (speed == null || speed < MIN_SPEED) {
             return "--:--";
         }
         return pace(unitM / speed);
+    }
+
+    // Seconds per metre over `meters` covered in `ms`, or null under 10 m.
+    function secPerMeter(ms as Number, meters as Float) as Float or Null {
+        return ms > 0 && meters > MIN_PACE_M ? ms / 1000.0 / meters : null;
     }
 
     // Metres -> "4.87" in units of `unitM`.
@@ -95,6 +103,15 @@ module Fmt {
             return 0.0;
         }
         return sec;
+    }
+
+    // "130-145" -> ["130", "145"]; "145" -> [null, "145"]. Settings-time only.
+    function splitDash(s as String) as [String or Null, String] {
+        var dash = s.find("-");
+        if (dash == null) {
+            return [null, s];
+        }
+        return [s.substring(0, dash) as String, s.substring(dash + 1, s.length()) as String];
     }
 
     // True if `s` is digits with at most one occurrence of `sep`.

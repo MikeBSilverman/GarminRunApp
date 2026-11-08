@@ -4,22 +4,24 @@ Usage: python tools/mkpreview.py <scenario> [dark]
 Scenarios: prestart | goal | hrgoal | workout | workoutcap | gel | rest | split | mismatch | offcourse | togo | compact
            | treadpre | treadmill
 Output: bin/preview/ (a full project copy with CourseRunField.mc patched)."""
-import sys, shutil, os
+import os
+import shutil
+import sys
 
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SP = os.path.join(R, "bin", "preview")
 os.makedirs(SP, exist_ok=True)
-scenario = sys.argv[1]
+scenario = sys.argv[1] if len(sys.argv) > 1 else ""
 dark = len(sys.argv) > 2 and sys.argv[2] == "dark"
 for d in ("source", "resources"):
-    if os.path.exists(SP + "/" + d):
-        shutil.rmtree(SP + "/" + d)
-    shutil.copytree(R + "/" + d, SP + "/" + d)
+    if os.path.exists(os.path.join(SP, d)):
+        shutil.rmtree(os.path.join(SP, d))
+    shutil.copytree(os.path.join(R, d), os.path.join(SP, d))
 for f in ("manifest.xml", "monkey.jungle", "developer_key.der"):
-    shutil.copy(R + "/" + f, SP + "/" + f)
+    shutil.copy(os.path.join(R, f), os.path.join(SP, f))
 
-p = SP + "/source/CourseRunField.mc"
-s = open(p, newline='').read().replace('\r\n', '\n')
+p = os.path.join(SP, "source", "CourseRunField.mc")
+s = open(p, newline='', encoding='utf-8').read().replace('\r\n', '\n')
 
 common = '''
         for (var i = 1; i <= 1310; i++) { _buf.add(i * 2000, i * 5.98); }
@@ -33,7 +35,6 @@ seeds = {
         _timerMs = 0;
 ''',
     "hrgoal": common + '''
-        _target.setGoal(540.0, Fmt.M_PER_MI, 10.0);
         _target.setGoalHr("145");
         _target.evaluate(2.9, 152);
 ''',
@@ -63,6 +64,8 @@ seeds = {
         _target.setFrom(Activity.WORKOUT_STEP_TARGET_SPEED, 2930, 3070, null);
         _target.source = WorkoutTarget.SOURCE_WORKOUT; _target.hasWorkout = true; _target.stepLabel = "RUN";
         _target.stepMs = 420000; _stepStartMs = _timerMs - 200000; _stepStartDist = _tracker.courseDist - 640.0;
+        for (var i = 1; i <= 60; i++) { _gpsBuf.add(_timerMs - 120000 + i * 2000, i * 6.0); }
+        _gpsDist = 360.0;
         _hr = 152; _target.evaluate(3.0, 152); _target.evaluate(3.0, 152);
 ''',
     "gel": common + '''
@@ -100,13 +103,24 @@ seeds = {
         _screenH = 2000;
 ''',
 }
+
+
+def patch(src, old, new):
+    """Replace `old` once; fail loudly if the field's code has moved on."""
+    assert old in src, "mkpreview anchor not found: " + old.strip().split("\n")[0]
+    return src.replace(old, new, 1)
+
+
+if scenario not in seeds:
+    sys.exit("scenario must be one of: " + " | ".join(sorted(seeds)))
 seed = "        loadSettings();\n        // PREVIEW SEED" + seeds[scenario]
-s = s.replace("        loadSettings();\n    }\n\n    hidden function cacheDeviceSettings", seed + "    }\n\n    hidden function cacheDeviceSettings", 1)
-assert "PREVIEW SEED" in s
+s = patch(s, "        loadSettings();\n    }\n\n    hidden function cacheDeviceSettings",
+          seed + "    }\n\n    hidden function cacheDeviceSettings")
 # freeze compute and periodic refresh
-s = s.replace("        var timer = info.timerTime;", "        if (true) { return; }\n        var timer = info.timerTime;", 1)
+s = patch(s, "        var timer = info.timerTime;", "        if (true) { return; }\n        var timer = info.timerTime;")
 if dark:
-    s = s.replace("        var bg = getBackgroundColor();", "        var bg = Graphics.COLOR_BLACK;", 1)
-    s = s.replace("        dc.setColor(fg, bg);\n        dc.clear();", "        dc.setColor(fg, bg);\n        dc.clear();\n        dc.setColor(bg, bg); dc.fillRectangle(0, 0, w, h);", 1)
-open(p, "w", newline='').write(s)
+    s = patch(s, "        var bg = getBackgroundColor();", "        var bg = Graphics.COLOR_BLACK;")
+    s = patch(s, "        dc.setColor(fg, bg);\n        dc.clear();",
+              "        dc.setColor(fg, bg);\n        dc.clear();\n        dc.setColor(bg, bg); dc.fillRectangle(0, 0, w, h);")
+open(p, "w", newline='', encoding='utf-8').write(s)
 print("preview:", scenario, "dark" if dark else "light")

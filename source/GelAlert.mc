@@ -16,11 +16,10 @@ class GelAlert extends WatchUi.DataFieldAlert {
     function onUpdate(dc as Graphics.Dc) as Void {
         var w = dc.getWidth();
         var h = dc.getHeight();
-        var vc = Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER;
         dc.setColor(Graphics.COLOR_ORANGE, Graphics.COLOR_ORANGE);
         dc.clear();
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w / 2, h * 42 / 100, Graphics.FONT_LARGE, "GEL " + _n.toString(), vc);
-        dc.drawText(w / 2, h * 60 / 100, Graphics.FONT_SMALL, "TIME TO FUEL", vc);
+        dc.drawText(w / 2, Layout.pct(h, 42), Graphics.FONT_LARGE, "GEL " + _n.toString(), Layout.VCENTER);
+        dc.drawText(w / 2, Layout.pct(h, 60), Graphics.FONT_SMALL, "TIME TO FUEL", Layout.VCENTER);
     }
 }

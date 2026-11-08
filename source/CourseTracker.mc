@@ -49,6 +49,10 @@ class CourseTracker {
     hidden const START_SNAP_M = 100.0;     // preview lead-in dropped at START
     hidden const CATCHUP_M = 400.0;        // course this close behind: catch up, don't stay off
     hidden const LEAP_M = 400.0;           // course this far ahead of GPS movement: ignored
+    hidden const RELOCK_FRACTION = 0.1;    // ...or this share of the course
+    hidden const LEAP_GPS_FACTOR = 2.0;    // a leap is beyond this many GPS deltas + LEAP_M
+    hidden const CATCHUP_RATE = 0.5;       // catching up: shown distance grows at this x course rate
+    hidden const MIN_STEP_M = 1.0;         // course moves under this are jitter
     hidden const MAX_M = 1000000.0;        // 1000 km: sanity bound on restored values
 
     var courseDist as Float = 0.0;
@@ -71,9 +75,8 @@ class CourseTracker {
         lengthMismatch = false;
         _length = null;
         _lastGps = null;
-        _stallTicks = 0;
-        _stallGps = 0.0;
         _lastCand = null;
+        clearStall();
     }
 
     // State for Resume Later, which reloads the field: [length (-1 = none),
@@ -125,8 +128,7 @@ class CourseTracker {
         mode = m;
         _lastGps = gps;
         _lastCand = null;
-        _stallTicks = 0;
-        _stallGps = 0.0;
+        clearStall();
         checkMismatch();
         return true;
     }
@@ -178,14 +180,30 @@ class CourseTracker {
         }
     }
 
+    hidden function setLength(m as Float) as Void {
+        _length = m;
+        checkMismatch();
+    }
+
+    hidden function clearStall() as Void {
+        _stallTicks = 0;
+        _stallGps = 0.0;
+    }
+
+    // The course value moved the shown distance forward: on course.
+    hidden function advance(to as Float) as Void {
+        courseDist = to;
+        mode = MODE_COURSE;
+        clearStall();
+    }
+
     // Before the timer starts: learn the course length from navigation.
     function preview(dtd as Float or Null) as Void {
         if (dtd == null || dtd <= 0.0) {
             return;
         }
         if (_length == null || dtd > (_length as Float)) {
-            _length = dtd;
-            checkMismatch();
+            setLength(dtd);
         }
     }
 
@@ -212,25 +230,7 @@ class CourseTracker {
             return;
         }
 
-        var implied = dtd + courseDist;
-        if (first && _length != null) {
-            var gap = (_length as Float) - dtd;
-            if (gap > 0.0 && gap < START_SNAP_M) {
-                _length = dtd;
-                checkMismatch();
-            }
-        }
-        if (_length == null) {
-            _length = implied;
-            checkMismatch();
-        } else {
-            var len = _length as Float;
-            var early = courseDist < RELOCK_MIN_M || courseDist < len * 0.1;
-            if (early && implied > len * (1.0 + RESCALE_TOL)) {
-                _length = implied;
-                checkMismatch();
-            }
-        }
+        learnLength(dtd, first);
 
         var len2 = _length as Float;
         var cand = len2 - dtd;
@@ -238,7 +238,7 @@ class CourseTracker {
             cand = cand * _official / len2;
         }
 
-        if (!first && cand - courseDist > delta * 2.0 + LEAP_M) {
+        if (!first && cand - courseDist > delta * LEAP_GPS_FACTOR + LEAP_M) {
             // Implausible leap ahead: treat as no advance (stall logic below).
             _lastCand = null;
             cand = courseDist;
@@ -247,20 +247,14 @@ class CourseTracker {
         _lastCand = cand;
 
         if (cand > courseDist) {
-            courseDist = cand;
-            mode = MODE_COURSE;
-            _stallTicks = 0;
-            _stallGps = 0.0;
+            advance(cand);
             return;
         }
 
         // Course advancing (at least half the GPS rate, so jitter doesn't
         // count) but behind the shown distance: close the gap gradually.
-        if (step > 1.0 && step >= delta * 0.5 && courseDist - cand < CATCHUP_M) {
-            courseDist += step * 0.5;
-            mode = MODE_COURSE;
-            _stallTicks = 0;
-            _stallGps = 0.0;
+        if (step > MIN_STEP_M && step >= delta * CATCHUP_RATE && courseDist - cand < CATCHUP_M) {
+            advance(courseDist + step * CATCHUP_RATE);
             return;
         }
 
@@ -272,6 +266,28 @@ class CourseTracker {
         } else if (_stallTicks >= STALL_SECS && _stallGps >= STALL_GPS_M) {
             mode = MODE_OFF;
             courseDist += _stallGps;
+        }
+    }
+
+    // The course length from a running reading: at START a short first
+    // reading drops the preview's walk to the start line; early in the run a
+    // reading implying a longer course re-locks it.
+    hidden function learnLength(dtd as Float, first as Boolean) as Void {
+        if (first && _length != null) {
+            var gap = (_length as Float) - dtd;
+            if (gap > 0.0 && gap < START_SNAP_M) {
+                setLength(dtd);
+            }
+        }
+        var implied = dtd + courseDist;
+        if (_length == null) {
+            setLength(implied);
+            return;
+        }
+        var len = _length as Float;
+        var early = courseDist < RELOCK_MIN_M || courseDist < len * RELOCK_FRACTION;
+        if (early && implied > len * (1.0 + RESCALE_TOL)) {
+            setLength(implied);
         }
     }
 }

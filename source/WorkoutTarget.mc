@@ -45,6 +45,8 @@ class WorkoutTarget {
     hidden const BPM_MIN = 30.0;         // goal HR values outside this are typos
     hidden const BPM_MAX = 250.0;
     hidden const MS_MIN = 20000;         // timed-step lengths at or above this are ms
+    hidden const HR_BPM_OFFSET = 100.0;  // HR target values above this are bpm + 100
+    hidden const MAX_LABEL_CHARS = 12;   // longer step names don't fit the band
 
     var kind as Number = KIND_NONE;
     var source as Number = SOURCE_NONE;
@@ -65,6 +67,23 @@ class WorkoutTarget {
     function initialize() {
     }
 
+    // Both goal settings at once (settings load). Returns true when the
+    // target in force changed, so the caller can restart its settle period.
+    function setGoals(secPerUnit as Float, unitM as Float, tolSec as Float, hrSpec as String) as Boolean {
+        var wasKind = kind;
+        var wasLow = low;
+        var wasHigh = high;
+        setGoal(secPerUnit, unitM, tolSec);
+        setGoalHr(hrSpec);
+        refresh();
+        return kind != wasKind || low != wasLow || high != wasHigh;
+    }
+
+    // No verdict (paused, settling, a new step).
+    function clearStatus() as Void {
+        status = STATUS_NONE;
+    }
+
     // Goal pace fallback: secPerUnit over unitM metres, tolerance in seconds
     // per unit. 0 disables.
     function setGoal(secPerUnit as Float, unitM as Float, tolSec as Float) as Void {
@@ -77,8 +96,9 @@ class WorkoutTarget {
         reapplyGoal();
     }
 
-    // Goal heart rate fallback from the setting text (see parseHr). Wins
-    // over the goal pace. Blank or unreadable = none.
+    // Goal heart rate fallback from the setting text (see parseHr). The
+    // target only without a goal pace; with one, its top is a ceiling
+    // (hrOverCap). Blank or unreadable = none.
     function setGoalHr(spec as String) as Void {
         var r = null;
         if (Fmt.trim(spec).length() > 0) {
@@ -107,9 +127,10 @@ class WorkoutTarget {
         if (s.length() == 0 || !Fmt.digitsAndOne(s, '-')) {
             return null;
         }
-        var dash = s.find("-");
-        var a = (dash != null ? s.substring(0, dash) : s) as String;
-        var b = (dash != null ? s.substring(dash + 1, s.length()) : s) as String;
+        var parts = Fmt.splitDash(s);
+        var ceiling = parts[0] == null;
+        var b = parts[1];
+        var a = ceiling ? b : parts[0] as String;
         if (a.length() == 0 || b.length() == 0 || a.length() > 3 || b.length() > 3) {
             return null;
         }
@@ -132,7 +153,7 @@ class WorkoutTarget {
         if (lo < BPM_MIN || hi > BPM_MAX) {
             return null;
         }
-        return [dash != null ? lo.toFloat() : 0.0, hi.toFloat()] as Array<Float>;
+        return [ceiling ? 0.0 : lo.toFloat(), hi.toFloat()] as Array<Float>;
     }
 
     // A goal setting changed: replace a goal target in force (or fill an
@@ -149,8 +170,8 @@ class WorkoutTarget {
         return _goalSpeed;
     }
 
-    // On a step judged on pace, the goal HR's top doubles as a ceiling: true
-    // when hr is over it (row 3 shows HR in red). Workouts often carry HR as
+    // On a step or goal judged on pace, the goal HR's top doubles as a ceiling:
+    // true when hr is over it (row 3 puts HR on a red pill). Workouts often carry HR as
     // a secondary target, which data fields can't read and the watch shows
     // but never alerts on.
     function hrOverCap(hr as Number or Null) as Boolean {
@@ -161,21 +182,19 @@ class WorkoutTarget {
         if (kind != KIND_NONE || isRest) {
             return;
         }
-        if (_goalHrHi > 0.0) {
+        // Goal pace leads; goal HR is the target only without one.
+        if (_goalSpeed > 0.0) {
+            // Slower pace = lower speed. Tolerance is symmetric in time per unit.
+            low = _goalSpeed / (1.0 + _goalTol);
+            high = _goalSpeed / (1.0 - _goalTol);
+            kind = KIND_PACE;
+            source = SOURCE_GOAL;
+        } else if (_goalHrHi > 0.0) {
             low = _goalHrLo;
             high = _goalHrHi;
             kind = KIND_HR;
             source = SOURCE_GOAL;
-            return;
         }
-        if (_goalSpeed <= 0.0) {
-            return;
-        }
-        // Slower pace = lower speed. Tolerance is symmetric in time per unit.
-        low = _goalSpeed / (1.0 + _goalTol);
-        high = _goalSpeed / (1.0 - _goalTol);
-        kind = KIND_PACE;
-        source = SOURCE_GOAL;
     }
 
     // Re-reads the workout step. Returns true when the target changed (new
@@ -252,7 +271,7 @@ class WorkoutTarget {
         if (inten == Activity.WORKOUT_INTENSITY_COOLDOWN) {
             return "COOL DOWN";
         }
-        if (name != null && name.length() > 0 && name.length() <= 12) {
+        if (name != null && name.length() > 0 && name.length() <= MAX_LABEL_CHARS) {
             return name.toUpper();
         }
         return "";
@@ -266,44 +285,52 @@ class WorkoutTarget {
             return;
         }
         // Floats from here: speed values may arrive as m/s Floats.
-        var fl = lo.toFloat();
-        var fh = hi.toFloat();
         if (targetType == Activity.WORKOUT_STEP_TARGET_SPEED) {
-            if (fl <= 0.0 && fh <= 0.0) {
-                return;
-            }
-            var a = speedValue(fl);
-            var b = speedValue(fh);
-            if (a > 0.0 && b > 0.0 && a > b) {
-                var tmp = a;
-                a = b;
-                b = tmp;
-            }
-            // A zero bound means "open" on that side.
-            low = a > 0.0 ? a : 0.0;
-            high = b > 0.0 ? b : OPEN_HIGH;
-            kind = KIND_PACE;
+            setSpeedBounds(lo.toFloat(), hi.toFloat());
         } else if (targetType == Activity.WORKOUT_STEP_TARGET_HEART_RATE) {
-            if (fl > 100.0 || fh > 100.0) {
-                low = fl > 100.0 ? fl - 100.0 : fl;
-                high = fh > 100.0 ? fh - 100.0 : fh;
-            } else if (fl == fh && fl >= 1.0 && fl <= 5.0 && zones != null && zones.size() >= 6) {
-                var z = fl.toNumber();
-                low = zones[z - 1].toFloat();
-                high = zones[z].toFloat();
-            } else if (fl > 0.0 && fh > 0.0 && zones != null && zones.size() > 0) {
-                var maxHr = zones[zones.size() - 1].toFloat();
-                low = maxHr * fl / 100.0;
-                high = maxHr * fh / 100.0;
-            } else {
-                return;
-            }
-            if (low > high) {
-                var tmp2 = low;
-                low = high;
-                high = tmp2;
-            }
-            kind = KIND_HR;
+            setHrBounds(lo.toFloat(), hi.toFloat(), zones);
+        }
+    }
+
+    // A zero bound means "open" on that side.
+    hidden function setSpeedBounds(fl as Float, fh as Float) as Void {
+        if (fl <= 0.0 && fh <= 0.0) {
+            return;
+        }
+        var a = speedValue(fl);
+        var b = speedValue(fh);
+        low = a > 0.0 ? a : 0.0;
+        high = b > 0.0 ? b : OPEN_HIGH;
+        if (a > 0.0 && b > 0.0) {
+            orderBounds();
+        }
+        kind = KIND_PACE;
+    }
+
+    hidden function setHrBounds(fl as Float, fh as Float, zones as Array<Number> or Null) as Void {
+        if (fl > HR_BPM_OFFSET || fh > HR_BPM_OFFSET) {
+            low = fl > HR_BPM_OFFSET ? fl - HR_BPM_OFFSET : fl;
+            high = fh > HR_BPM_OFFSET ? fh - HR_BPM_OFFSET : fh;
+        } else if (fl == fh && fl >= 1.0 && fl <= 5.0 && zones != null && zones.size() >= 6) {
+            var z = fl.toNumber();
+            low = zones[z - 1].toFloat();
+            high = zones[z].toFloat();
+        } else if (fl > 0.0 && fh > 0.0 && zones != null && zones.size() > 0) {
+            var maxHr = zones[zones.size() - 1].toFloat();
+            low = maxHr * fl / 100.0;
+            high = maxHr * fh / 100.0;
+        } else {
+            return;
+        }
+        orderBounds();
+        kind = KIND_HR;
+    }
+
+    hidden function orderBounds() as Void {
+        if (low > high) {
+            var t = low;
+            low = high;
+            high = t;
         }
     }
 

@@ -151,15 +151,13 @@ class WorkoutTarget:
     def apply_goal(self):
         if self.kind is not None or self.rest:
             return
-        if self.goal_hr:
+        if self.goal_speed > 0:   # goal pace leads; goal HR only without one
+            self.low = self.goal_speed / (1 + self.goal_tol)
+            self.high = self.goal_speed / (1 - self.goal_tol)
+            self.kind, self.source = "pace", "goal"
+        elif self.goal_hr:
             self.low, self.high = self.goal_hr
             self.kind, self.source = "hr", "goal"
-            return
-        if self.goal_speed <= 0:
-            return
-        self.low = self.goal_speed / (1 + self.goal_tol)
-        self.high = self.goal_speed / (1 - self.goal_tol)
-        self.kind, self.source = "pace", "goal"
 
     def set_step(self, step, max_hr, mmps):
         """refresh() for one FIT workout step (None: no workout running).

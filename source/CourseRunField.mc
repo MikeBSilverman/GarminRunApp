@@ -10,9 +10,12 @@ import Toybox.WatchUi;
 //
 //   [ status band: ON PACE / SLOW DOWN / SPEED UP + target or ahead/behind ]
 //                  course distance (hero)
-//            COURSE MI · FIN 1:56:30   (or a split flash for 6 s)
+//            COURSE MI · FIN 1:56:30   (or a split flash for 6 s, or GEL n)
 //         course avg pace     |   last mile / last km / lap pace
-//              time           |   heart rate
+//              time   |   heart rate   |   cadence
+//
+// In a workout row 2 is STEP AVG | LAST 30S and the time is the step's
+// (LEFT or STEP); see CLAUDE.md for the positions.
 //
 // Before START the band reports whether a course is loaded ("COURSE READY"),
 // or TREADMILL in the Treadmill profile, where there is none.
@@ -36,6 +39,13 @@ class CourseRunField extends WatchUi.DataField {
     hidden const STATE_KEY = "run";
     hidden const SAVE_EVERY_MS = 180000;   // Resume Later always stops the timer, which saves
     hidden const REFRESH_TICKS = 15;       // poll the workout step; step callbacks cover changes
+    hidden const LONG_AGO_MS = -1000000;   // "never" for last-alert and last-stop times
+    hidden const MIN_SPEED_MS = 5000;      // a step this young has too little to read a speed from
+    hidden const RATIO_MIN_GPS_M = 1000.0; // GPS this far before the course/GPS ratio is trusted
+    hidden const RATIO_MIN = 0.95;         // course/GPS ratio clamp
+    hidden const RATIO_MAX = 1.05;
+    hidden const PROJECT_MIN_M = 400.0;    // course covered before projecting a finish
+    hidden const GOAL_GAP_MIN_M = 50.0;    // course covered before ahead/behind
 
     hidden var _tracker as CourseTracker;
     hidden var _buf as PaceBuffer;      // course distance: splits, rolling pace
@@ -64,11 +74,13 @@ class CourseRunField extends WatchUi.DataField {
     // Cached device settings
     hidden var _distUnit as Float = Fmt.M_PER_MI;
     hidden var _paceUnit as Float = Fmt.M_PER_MI;
+    hidden var _unitText as String = " MI";    // distance unit, after a number
+    hidden var _paceText as String = "MI ";    // pace unit, before a split number
     hidden var _screenH as Number = 454;
     hidden var _treadmill as Boolean = false;   // Treadmill profile: no course, wrist distance
 
-    // Start of the current workout step (or of the run): settle period and
-    // the step's average pace in the band
+    // Start of the current workout step (or of the run): settle period,
+    // STEP AVG, LAST 30S and the step timer
     hidden var _stepStartMs as Number = 0;
     hidden var _stepStartDist as Float = 0.0;
 
@@ -87,12 +99,12 @@ class CourseRunField extends WatchUi.DataField {
 
     // Alerts
     hidden var _lastAlertStatus as Number = 0;
-    hidden var _lastAlertMs as Number = -100000;
+    hidden var _lastAlertMs as Number = LONG_AGO_MS;
     hidden var _statusSinceMs as Number = 0;   // when the band's verdict last changed
 
     // Stops (traffic lights, walk breaks) with the timer running
     hidden var _slowTicks as Number = 0;
-    hidden var _stopMs as Number = -1000000;   // last running tick spent stopped
+    hidden var _stopMs as Number = LONG_AGO_MS;   // last running tick spent stopped
 
     function initialize() {
         DataField.initialize();
@@ -109,36 +121,34 @@ class CourseRunField extends WatchUi.DataField {
 
     hidden function cacheDeviceSettings() as Void {
         var ds = System.getDeviceSettings();
-        _distUnit = ds.distanceUnits == System.UNIT_METRIC ? Fmt.M_PER_KM : Fmt.M_PER_MI;
-        _paceUnit = ds.paceUnits == System.UNIT_METRIC ? Fmt.M_PER_KM : Fmt.M_PER_MI;
+        var kmDist = ds.distanceUnits == System.UNIT_METRIC;
+        var kmPace = ds.paceUnits == System.UNIT_METRIC;
+        _distUnit = kmDist ? Fmt.M_PER_KM : Fmt.M_PER_MI;
+        _paceUnit = kmPace ? Fmt.M_PER_KM : Fmt.M_PER_MI;
+        _unitText = kmDist ? " KM" : " MI";
+        _paceText = kmPace ? "KM " : "MI ";
         _screenH = ds.screenHeight;
     }
 
     function loadSettings() as Void {
         cacheDeviceSettings();
-        _officialLen = readFloat("courseLength", 0.0);
-        var smooth = readFloat("smoothSeconds", 30.0);
+        _officialLen = Props.num("courseLength", 0.0);
+        var smooth = Props.num("smoothSeconds", 30.0);
         if (smooth < 5.0) {
             smooth = 5.0;
         } else if (smooth > 120.0) {
             smooth = 120.0;
         }
         _smoothMs = (smooth * 1000).toNumber();
-        _rollingUnit = readFloat("rollingUnit", 0.0).toNumber();
-        _showToGo = readFloat("distanceMode", 0.0).toNumber() == 1;
-        _goalTolSec = readFloat("goalTolerance", 10.0);
-        _goalSec = Fmt.parsePace(readString("goalPace"));
-        _alerts = readFloat("alerts", 1.0).toNumber();
-        _gel.setTimes(readFloat("gelFirst", 0.0).toNumber(), readFloat("gelEvery", 30.0).toNumber());
+        _rollingUnit = Props.num("rollingUnit", 0.0).toNumber();
+        _showToGo = Props.num("distanceMode", 0.0).toNumber() == 1;
+        _goalTolSec = Props.num("goalTolerance", 10.0);
+        _goalSec = Fmt.parsePace(Props.str("goalPace"));
+        _alerts = Props.num("alerts", 1.0).toNumber();
+        _gel.setTimes(Props.num("gelFirst", 0.0).toNumber(), Props.num("gelEvery", 30.0).toNumber());
 
         _tracker.setOfficialLength(_officialLen * _distUnit);
-        var kind = _target.kind;
-        var lo = _target.low;
-        var hi = _target.high;
-        _target.setGoal(_goalSec, _paceUnit, _goalTolSec);
-        _target.setGoalHr(readString("goalHr"));
-        _target.refresh();
-        if (_target.kind != kind || _target.low != lo || _target.high != hi) {
+        if (_target.setGoals(_goalSec, _paceUnit, _goalTolSec, Props.str("goalHr"))) {
             // A new goal mid-run: judge it afresh, after the settle period.
             newStep();
         }
@@ -156,28 +166,6 @@ class CourseRunField extends WatchUi.DataField {
         return false;
     }
 
-    hidden function readFloat(key as String, dflt as Float) as Float {
-        try {
-            var v = Application.Properties.getValue(key);
-            if (v instanceof Number || v instanceof Float || v instanceof Double) {
-                return v.toFloat();
-            }
-        } catch (e) {
-        }
-        return dflt;
-    }
-
-    hidden function readString(key as String) as String {
-        try {
-            var v = Application.Properties.getValue(key);
-            if (v instanceof String) {
-                return v;
-            }
-        } catch (e) {
-        }
-        return "";
-    }
-
     // ---- activity lifecycle -------------------------------------------------
 
     function onTimerReset() as Void {
@@ -186,7 +174,7 @@ class CourseRunField extends WatchUi.DataField {
         _gpsBuf.reset();
         _gpsDist = 0.0;
         _fit.reset();
-        _target.status = WorkoutTarget.STATUS_NONE;
+        _target.clearStatus();
         _timerMs = 0;
         _lastTimerMs = -1;
         _running = false;
@@ -199,10 +187,10 @@ class CourseRunField extends WatchUi.DataField {
         _gel.reset();
         _lastSaveMs = 0;
         _lastAlertStatus = WorkoutTarget.STATUS_NONE;
-        _lastAlertMs = -100000;
+        _lastAlertMs = LONG_AGO_MS;
         _statusSinceMs = 0;
         _slowTicks = 0;
-        _stopMs = -1000000;
+        _stopMs = LONG_AGO_MS;
         clearState();
     }
 
@@ -234,7 +222,7 @@ class CourseRunField extends WatchUi.DataField {
     hidden function newStep() as Void {
         _stepStartMs = _timerMs;
         _stepStartDist = _tracker.courseDist;
-        _target.status = WorkoutTarget.STATUS_NONE;
+        _target.clearStatus();
     }
 
     // Called once a second by the Run activity, before and after START.
@@ -246,46 +234,22 @@ class CourseRunField extends WatchUi.DataField {
         var started = info.startTime;
         _startSec = started != null ? started.value() : null;
 
+        _running = false;
         if (_timerMs == 0) {
             // Before START: learn the course length so the lock is right
             // before the gun and the band can say COURSE READY.
             _tracker.preview(info.distanceToDestination);
-            _running = false;
         } else if (_lastTimerMs < 0) {
             // First compute of an instance created mid-activity (Resume
             // Later, or the field added during a run): pick up any saved
             // state; the timer may not be running yet, so no update.
             restoreState();
-            _running = false;
         } else if (_timerMs != _lastTimerMs) {
             // Timer is running. When it is stopped or paused timerTime does
             // not change, and neither must the course distance, the pace
             // history, or the recorded fields.
             _running = true;
-            var gps = info.elapsedDistance;
-            _gpsDist = gps != null ? gps : _gpsDist;
-            _tracker.update(_gpsDist, info.distanceToDestination);
-            _buf.add(_timerMs, _tracker.courseDist);
-            _gpsBuf.add(_timerMs, _gpsDist);
-            _fit.update(_tracker.courseDist, _timerMs);
-            trackStop(info.currentSpeed);
-            checkSplit();
-            if (_gel.check(_timerMs)) {
-                buzz(Attention.TONE_ALERT_HI);
-                // Over whichever data page is showing; the pill on this
-                // page stays for the minute either way.
-                if (self has :showAlert) {
-                    try {
-                        showAlert(new GelAlert(_gel.count));
-                    } catch (e) {
-                    }
-                }
-            }
-            if (_timerMs - _lastSaveMs >= SAVE_EVERY_MS) {
-                saveState();
-            }
-        } else {
-            _running = false;
+            runningTick(info);
         }
         _lastTimerMs = _timerMs;
 
@@ -296,7 +260,41 @@ class CourseRunField extends WatchUi.DataField {
             newStep();
         }
 
-        var status;
+        judge();
+    }
+
+    hidden function runningTick(info as Activity.Info) as Void {
+        var gps = info.elapsedDistance;
+        _gpsDist = gps != null ? gps : _gpsDist;
+        _tracker.update(_gpsDist, info.distanceToDestination);
+        _buf.add(_timerMs, _tracker.courseDist);
+        _gpsBuf.add(_timerMs, _gpsDist);
+        _fit.update(_tracker.courseDist, _timerMs);
+        trackStop(info.currentSpeed);
+        checkSplit();
+        checkGel();
+        if (_timerMs - _lastSaveMs >= SAVE_EVERY_MS) {
+            saveState();
+        }
+    }
+
+    // A gel is due: buzz, and push the full-screen alert over whichever data
+    // page is showing; the pill on this page stays for the minute either way.
+    hidden function checkGel() as Void {
+        if (!_gel.check(_timerMs)) {
+            return;
+        }
+        buzz(Attention.TONE_ALERT_HI);
+        if (self has :showAlert) {
+            try {
+                showAlert(new GelAlert(_gel.count));
+            } catch (e) {
+            }
+        }
+    }
+
+    // The band's verdict for this second, recorded and alerted on while running.
+    hidden function judge() as Void {
         var was = _target.status;
         var settle = _target.kind == WorkoutTarget.KIND_HR ? HR_SETTLE_MS : SETTLE_MS;
         if (!_running || _target.isRest || _timerMs - _stepStartMs < settle
@@ -305,11 +303,11 @@ class CourseRunField extends WatchUi.DataField {
             // the run), or stopped with the timer running and until the stop
             // has left the smoothing window: no verdict; the band shows the
             // target or step.
-            _target.status = WorkoutTarget.STATUS_NONE;
-            status = _target.status;
+            _target.clearStatus();
         } else {
-            status = _target.evaluate(currentSpeed(), _hr);
+            _target.evaluate(currentSpeed(), _hr);
         }
+        var status = _target.status;
         if (status != was) {
             _statusSinceMs = _timerMs;
         }
@@ -395,14 +393,31 @@ class CourseRunField extends WatchUi.DataField {
     // bends (30 s course speed was 2.7% noisy on an FR965 run, more than a
     // 10 s/mi band), so it drives the totals but not the instant verdict.
     hidden function currentSpeed() as Float or Null {
-        var v = _gpsBuf.smoothedSpeed(_timerMs, _gpsDist, _smoothMs);
+        return scaledGpsSpeed(_smoothMs);
+    }
+
+    // The band's speed clipped to the current workout step (LAST 30S): the
+    // smoothing window, or the time in the step when that is shorter, so the
+    // number starts fresh with each step and never includes the recovery
+    // before it. Null in the first 5 s (too little to read anything from).
+    hidden function stepSpeed() as Float or Null {
+        var inStep = _timerMs - _stepStartMs;
+        if (inStep < MIN_SPEED_MS) {
+            return null;
+        }
+        var v = scaledGpsSpeed(inStep < _smoothMs ? inStep : _smoothMs);
+        return v != null && v > 0.0 ? v : null;
+    }
+
+    hidden function scaledGpsSpeed(windowMs as Number) as Float or Null {
+        var v = _gpsBuf.smoothedSpeed(_timerMs, _gpsDist, windowMs);
         if (v == null) {
             return null;
         }
         var k = 1.0;
-        if (_gpsDist > 1000.0 && _tracker.mode == CourseTracker.MODE_COURSE) {
+        if (_gpsDist > RATIO_MIN_GPS_M && _tracker.mode == CourseTracker.MODE_COURSE) {
             k = _tracker.courseDist / _gpsDist;
-            k = k < 0.95 ? 0.95 : (k > 1.05 ? 1.05 : k);
+            k = k < RATIO_MIN ? RATIO_MIN : (k > RATIO_MAX ? RATIO_MAX : k);
         }
         return v * k;
     }
@@ -415,7 +430,7 @@ class CourseRunField extends WatchUi.DataField {
         var startT = _buf.timeAtDistance((idx - 1) * _paceUnit);
         if (startT != null) {
             var split = (_timerMs - startT) / 1000.0;
-            _splitText = (_paceUnit == Fmt.M_PER_MI ? "MI " : "KM ") + idx.toString()
+            _splitText = _paceText + idx.toString()
                          + "  " + Fmt.pace(split);
             _splitUntilMs = _timerMs + SPLIT_FLASH_MS;
         }
@@ -425,7 +440,7 @@ class CourseRunField extends WatchUi.DataField {
     // One alert per SLOW DOWN / SPEED UP episode, once it has lasted
     // ALERT_HOLD_MS (slowing for a light, a brief surge), at most every
     // ALERT_GAP_MS; an episode that starts inside the gap alerts when the gap
-    // ends. Called every running tick. Follows the watch's vibration and tone settings.
+    // ends. Called every running tick.
     hidden function maybeAlert(status as Number) as Void {
         var goal = _target.source == WorkoutTarget.SOURCE_GOAL;
         if (_alerts == 0 || (_alerts == 1 && !goal)) {
@@ -467,23 +482,13 @@ class CourseRunField extends WatchUi.DataField {
         return _paceUnit;
     }
 
-    // Hero distance in metres and whether it is distance-to-go.
-    hidden function heroMeters() as [Float, Boolean] {
-        if (_showToGo) {
-            var r = _tracker.remainingMeters();
-            if (r != null) {
-                return [r, true];
-            }
-        }
-        return [_tracker.courseDist, false];
+    // Distance to go in metres when the big number shows it, else null.
+    hidden function toGoMeters() as Float or Null {
+        return _showToGo ? _tracker.remainingMeters() : null;
     }
 
     hidden function avgSecPerMeter() as Float or Null {
-        var cd = _tracker.courseDist;
-        if (cd > 10.0 && _timerMs > 0) {
-            return _timerMs / 1000.0 / cd;
-        }
-        return null;
+        return Fmt.secPerMeter(_timerMs, _tracker.courseDist);
     }
 
     // Projected finish (timer ms) from remaining course distance and a blend
@@ -491,7 +496,7 @@ class CourseRunField extends WatchUi.DataField {
     hidden function projectedFinishMs() as Number or Null {
         var rem = _tracker.remainingMeters();
         var avg = avgSecPerMeter();
-        if (rem == null || avg == null || _tracker.courseDist < 400.0) {
+        if (rem == null || avg == null || _tracker.courseDist < PROJECT_MIN_M) {
             return null;
         }
         var spm = avg;
@@ -505,7 +510,7 @@ class CourseRunField extends WatchUi.DataField {
     // Seconds ahead (negative) or behind (positive) the goal pace.
     hidden function goalDeltaSec() as Float or Null {
         var gs = _target.goalSpeed();
-        if (gs <= 0.0 || _tracker.courseDist < 50.0) {
+        if (gs <= 0.0 || _tracker.courseDist < GOAL_GAP_MIN_M) {
             return null;
         }
         return _timerMs / 1000.0 - _tracker.courseDist / gs;
@@ -549,7 +554,7 @@ class CourseRunField extends WatchUi.DataField {
         return "";
     }
 
-    // A workout is running: row 2 right and row 3 left follow the step.
+    // A workout is running: row 2 and the row 3 timer follow the step.
     hidden function inWorkout() as Boolean {
         return _target.hasWorkout && _timerMs > 0;
     }
@@ -564,6 +569,21 @@ class CourseRunField extends WatchUi.DataField {
             return "ON GOAL";
         }
         return (dd < 0.0 ? "AHEAD " : "BEHIND ") + Fmt.pace(dd < 0.0 ? -dd : dd);
+    }
+
+    // Hero label for the distance mode ("COURSE MI"); orange when off course.
+    hidden function modeLabel() as String {
+        if (_tracker.mode == CourseTracker.MODE_COURSE) {
+            return "COURSE" + _unitText;
+        }
+        if (_tracker.mode == CourseTracker.MODE_OFF) {
+            return "OFF COURSE" + _unitText;
+        }
+        return (_treadmill ? "TREADMILL" : "GPS") + _unitText;
+    }
+
+    hidden function modeColor(normal as Number) as Number {
+        return _tracker.mode == CourseTracker.MODE_OFF ? Graphics.COLOR_ORANGE : normal;
     }
 
     hidden function statusColor(status as Number) as Number {
@@ -588,121 +608,111 @@ class CourseRunField extends WatchUi.DataField {
         dc.setColor(fg, bg);
         dc.clear();
 
-        var hero = heroMeters();
+        var toGo = toGoMeters();
+        var hero = toGo != null ? toGo : _tracker.courseDist;
         var status = _target.status;
 
         if (h < _screenH * 3 / 4) {
-            drawCompact(dc, w, h, fg, dim, status, hero[0]);
+            drawCompact(dc, w, h, fg, dim, status, hero);
             return;
         }
 
-        var cx = w / 2;
-        var vc = Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER;
-
         drawBand(dc, w, h, dim, status);
-
-        // Hero.
         dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx, Layout.pct(h, 39), Layout.heroFont(h), Fmt.dist(hero[0], _distUnit), vc);
+        dc.drawText(w / 2, Layout.pct(h, Layout.HERO_Y), Layout.heroFont(h), Fmt.dist(hero, _distUnit), Layout.VCENTER);
+        drawHeroLabel(dc, w, h, fg, dim, toGo != null);
+        var workout = inWorkout();
+        drawRow2(dc, w, h, fg, dim, workout);
+        drawRow3(dc, w, h, fg, dim, workout);
+    }
 
-        // Label line under the hero: split flash, or mode + projected finish.
-        var unit = _distUnit == Fmt.M_PER_MI ? " MI" : " KM";
+    // Under the hero: a split flash, a gel reminder, or mode + projected finish.
+    hidden function drawHeroLabel(dc as Graphics.Dc, w as Number, h as Number, fg as Number,
+                                  dim as Number, toGo as Boolean) as Void {
+        var cx = w / 2;
+        var y = Layout.pct(h, Layout.LABEL_Y);
         var label;
-        var labelColor = dim;
-        if (_splitUntilMs > _timerMs && _timerMs > 0) {
+        var color = dim;
+        if (_gel.showing(_timerMs)) {
+            // Black on an orange pill for a minute, over the split flash too
+            // (the watch's own lap screen shows the split).
+            label = "GEL " + _gel.count.toString();
+            Layout.drawPill(dc, cx, y, label, Layout.labelFont(), Layout.pct(w, 8), Graphics.COLOR_ORANGE);
+            color = Graphics.COLOR_BLACK;
+        } else if (_splitUntilMs > _timerMs && _timerMs > 0) {
             label = _splitText;
-            labelColor = fg;
+            color = fg;
         } else {
-            if (hero[1]) {
-                label = "TO GO" + unit;
-            } else if (_tracker.mode == CourseTracker.MODE_COURSE) {
-                label = "COURSE" + unit;
-            } else if (_tracker.mode == CourseTracker.MODE_OFF) {
-                label = "OFF COURSE" + unit;
-                labelColor = Graphics.COLOR_ORANGE;
-            } else {
-                label = (_treadmill ? "TREADMILL" : "GPS") + unit;
-            }
+            label = toGo ? "TO GO" + _unitText : modeLabel();
+            color = toGo ? dim : modeColor(dim);
             var fin = projectedFinishMs();
             if (fin != null) {
                 label = label + " · FIN " + Fmt.timer(fin);
             }
         }
-        if (_gel.showing(_timerMs)) {
-            // Fuel reminder: black on an orange pill for a minute, over the
-            // split flash too (the watch's own lap screen shows the split).
-            label = "GEL " + _gel.count.toString();
-            var dims = dc.getTextDimensions(label, Layout.labelFont());
-            var pw = dims[0] + Layout.pct(w, 8);
-            var ph = dims[1] * 8 / 10;   // full font height touches row 2
-            dc.setColor(Graphics.COLOR_ORANGE, Graphics.COLOR_ORANGE);
-            dc.fillRoundedRectangle(cx - pw / 2, Layout.pct(h, 53) - ph / 2, pw, ph, ph / 4);
-            labelColor = Graphics.COLOR_BLACK;
-        }
-        dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx, Layout.pct(h, 53), Layout.labelFont(), label, vc);
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, y, Layout.labelFont(), label, Layout.VCENTER);
+    }
 
-        // Row 2: course average pace | rolling / lap pace. In a workout the
-        // overall average is no use, so the left is the step's average on
-        // course distance (the rep split) and the right the rolling pace.
+    // Row 2: course average pace | rolling / lap pace. In a workout the
+    // overall average is no use, so the left is the step's average on course
+    // distance (the rep split) and the right the pace behind the band (last
+    // 30 s by default), restarted at each step: a distance window never fills
+    // on short reps and would span the recovery.
+    hidden function drawRow2(dc as Graphics.Dc, w as Number, h as Number, fg as Number,
+                             dim as Number, workout as Boolean) as Void {
         var avg = avgSecPerMeter();
-        var lx = Layout.pct(w, 30);
-        var rx = Layout.pct(w, 70);
         var leftLabel = _tracker.mode == CourseTracker.MODE_COURSE ? "COURSE AVG" : "AVG PACE";
         var leftSpm = avg;
         var rightLabel;
         var rightSpm = null;
-        var workout = inWorkout();
         if (workout) {
             leftLabel = "STEP AVG";
-            leftSpm = null;
-            var sd = _tracker.courseDist - _stepStartDist;
-            if (sd > 10.0 && _timerMs > _stepStartMs) {
-                leftSpm = (_timerMs - _stepStartMs) / 1000.0 / sd;
-            }
-            var wm = rollingWindowM();
-            rightLabel = wm == Fmt.M_PER_MI ? "LAST MI" : "LAST KM";
-            rightSpm = _buf.rollingSecPerMeter(_timerMs, _tracker.courseDist, wm);
+            leftSpm = Fmt.secPerMeter(_timerMs - _stepStartMs, _tracker.courseDist - _stepStartDist);
+            rightLabel = "LAST " + (_smoothMs / 1000).toString() + "S";
+            var sv = stepSpeed();
+            rightSpm = sv != null ? 1.0 / sv : null;
         } else if (_rollingUnit == 3) {
             rightLabel = "LAP PACE";
-            var ld = _tracker.courseDist - _lapStartDist;
-            if (ld > 10.0 && _timerMs > _lapStartMs) {
-                rightSpm = (_timerMs - _lapStartMs) / 1000.0 / ld;
-            }
+            rightSpm = Fmt.secPerMeter(_timerMs - _lapStartMs, _tracker.courseDist - _lapStartDist);
         } else {
             var rollM = rollingWindowM();
             rightLabel = rollM == Fmt.M_PER_MI ? "LAST MI" : "LAST KM";
             rightSpm = _buf.rollingSecPerMeter(_timerMs, _tracker.courseDist, rollM);
         }
-
-        dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(lx, Layout.pct(h, 61), Layout.valueFont(h),
-                    Fmt.pace(leftSpm != null ? leftSpm * _paceUnit : null), vc);
-        if (rightSpm != null) {
-            dc.drawText(rx, Layout.pct(h, 61), Layout.valueFont(h), Fmt.pace(rightSpm * _paceUnit), vc);
-        } else if (workout) {
-            dc.drawText(rx, Layout.pct(h, 61), Layout.valueFont(h), Fmt.pace(null), vc);
-        } else {
+        var rightColor = fg;
+        if (rightSpm == null && !workout) {
             // Before a full window is covered, show the average so far, dimmed.
-            dc.setColor(dim, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(rx, Layout.pct(h, 61), Layout.valueFont(h),
-                        Fmt.pace(avg != null ? avg * _paceUnit : null), vc);
+            rightSpm = avg;
+            rightColor = dim;
             if (_rollingUnit != 3) {
                 rightLabel = "AVG (1ST)";
             }
         }
-        dc.setColor(dim, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(lx, Layout.pct(h, 69), Layout.labelFont(), leftLabel, vc);
-        dc.drawText(rx, Layout.pct(h, 69), Layout.labelFont(), rightLabel, vc);
-        dc.drawLine(cx, Layout.pct(h, 57), cx, Layout.pct(h, 74));
 
-        // Row 3: timer | heart rate | cadence. Timer is m:ss, then h:mm past an hour,
-        // so three columns fit inside the chord at 87% height (about 17%..83%).
-        // In a workout the timer is the step's: time left in a timed step,
-        // else time in the step.
-        var tx = Layout.pct(w, 28);
-        var hx = Layout.pct(w, 54);
-        var kx = Layout.pct(w, 76);
+        var lx = Layout.pct(w, Layout.ROW2_LEFT_X);
+        var rx = Layout.pct(w, Layout.ROW2_RIGHT_X);
+        var y = Layout.pct(h, Layout.ROW2_Y);
+        var ly = Layout.pct(h, Layout.ROW2_LABEL_Y);
+        dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(lx, y, Layout.valueFont(h), paceText(leftSpm), Layout.VCENTER);
+        dc.setColor(rightColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(rx, y, Layout.valueFont(h), paceText(rightSpm), Layout.VCENTER);
+        dc.setColor(dim, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(lx, ly, Layout.labelFont(), leftLabel, Layout.VCENTER);
+        dc.drawText(rx, ly, Layout.labelFont(), rightLabel, Layout.VCENTER);
+        dc.drawLine(w / 2, Layout.pct(h, Layout.DIVIDER_TOP), w / 2, Layout.pct(h, Layout.DIVIDER_BOTTOM));
+    }
+
+    hidden function paceText(spm as Float or Null) as String {
+        return Fmt.pace(spm != null ? spm * _paceUnit : null);
+    }
+
+    // Row 3: timer | heart rate | cadence. The timer is m:ss, then h:mm past
+    // an hour, so three columns fit inside the chord at 87% height. In a
+    // workout it is the step's: time left in a timed step, else time in it.
+    hidden function drawRow3(dc as Graphics.Dc, w as Number, h as Number, fg as Number,
+                             dim as Number, workout as Boolean) as Void {
         var timeMs = _timerMs;
         var timeLabel = "TIME";
         if (workout) {
@@ -713,90 +723,97 @@ class CourseRunField extends WatchUi.DataField {
                 timeLabel = "LEFT";
             }
         }
+        var tx = Layout.pct(w, Layout.TIME_X);
+        var hx = Layout.pct(w, Layout.HR_X);
+        var cadX = Layout.pct(w, Layout.CAD_X);
+        var y = Layout.pct(h, Layout.ROW3_Y);
+        var ly = Layout.pct(h, Layout.ROW3_LABEL_Y);
+        var font = Layout.rowFont(h);
         dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(tx, Layout.pct(h, 79), Layout.rowFont(h), Fmt.timerShort(timeMs < 0 ? 0 : timeMs), vc);
+        dc.drawText(tx, y, font, Fmt.timerShort(timeMs < 0 ? 0 : timeMs), Layout.VCENTER);
+        dc.drawText(cadX, y, font, _cadence != null ? _cadence.toString() : "--", Layout.VCENTER);
         var hrText = _hr != null ? _hr.toString() : "--";
         if (_target.hrOverCap(_hr)) {
             // White on a red pill: red digits on black were too dark to read
             // on the FR965 (0.6.0).
-            var dims = dc.getTextDimensions(hrText, Layout.rowFont(h));
-            var pw = dims[0] + Layout.pct(w, 4);
-            var ph = dims[1] * 8 / 10;
-            dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_RED);
-            dc.fillRoundedRectangle(hx - pw / 2, Layout.pct(h, 79) - ph / 2, pw, ph, ph / 4);
+            Layout.drawPill(dc, hx, y, hrText, font, Layout.pct(w, 4), Graphics.COLOR_RED);
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
         }
-        dc.drawText(hx, Layout.pct(h, 79), Layout.rowFont(h), hrText, vc);
-        dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(kx, Layout.pct(h, 79), Layout.rowFont(h),
-                    _cadence != null ? _cadence.toString() : "--", vc);
+        dc.drawText(hx, y, font, hrText, Layout.VCENTER);
         dc.setColor(dim, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(tx, Layout.pct(h, 87), Layout.labelFont(), timeLabel, vc);
-        dc.drawText(hx, Layout.pct(h, 87), Layout.labelFont(), "HR", vc);
-        dc.drawText(kx, Layout.pct(h, 87), Layout.labelFont(), "CAD", vc);
+        dc.drawText(tx, ly, Layout.labelFont(), timeLabel, Layout.VCENTER);
+        dc.drawText(hx, ly, Layout.labelFont(), "HR", Layout.VCENTER);
+        dc.drawText(cadX, ly, Layout.labelFont(), "CAD", Layout.VCENTER);
     }
 
     hidden function drawBand(dc as Graphics.Dc, w as Number, h as Number, dim as Number,
                              status as Number) as Void {
-        var cx = w / 2;
-        var vc = Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER;
+        if (_timerMs == 0) {
+            drawPrestartBand(dc, w, h);
+            return;
+        }
         var line1;
         var line2 = "";
-        var fill = null;
         var textColor = dim;
-
-        if (_timerMs == 0) {
-            // Before START: is the course loaded?
-            if (!_tracker.hasCourse() && _treadmill) {
-                // Indoors there is no course to load; distance is the watch's.
-                line1 = "TREADMILL";
-                textColor = Graphics.COLOR_DK_GREEN;
-            } else if (!_tracker.hasCourse()) {
-                line1 = "NO COURSE";
-                line2 = "NAVIGATION > COURSES";
-                textColor = Graphics.COLOR_ORANGE;
-            } else if (_tracker.lengthMismatch) {
-                line1 = "CHECK LENGTH";
-                line2 = Fmt.dist(_tracker.loadedLengthMeters() as Float, _distUnit)
-                        + " LOADED, " + Fmt.dist(_officialLen * _distUnit, _distUnit) + " SET";
-                textColor = Graphics.COLOR_ORANGE;
-            } else {
-                line1 = "COURSE READY";
-                line2 = Fmt.dist(_tracker.lengthMeters() as Float, _distUnit)
-                        + (_distUnit == Fmt.M_PER_MI ? " MI" : " KM");
-                textColor = Graphics.COLOR_DK_GREEN;
-            }
-        } else if (_target.isRest) {
+        if (_target.isRest) {
             line1 = _target.stepLabel;
         } else if (_target.kind == WorkoutTarget.KIND_NONE) {
             line1 = _target.hasWorkout ? "NO TARGET" : "NO GOAL SET";
             line2 = _target.stepLabel;
-        } else if (status == WorkoutTarget.STATUS_NONE) {
-            line1 = statusWords(status);
-            line2 = rangeText();
         } else {
-            fill = statusColor(status);
-            textColor = Graphics.COLOR_WHITE;
             line1 = statusWords(status);
-            if (_target.source == WorkoutTarget.SOURCE_GOAL && _target.kind == WorkoutTarget.KIND_PACE) {
-                line2 = goalLine();
+            if (status == WorkoutTarget.STATUS_NONE) {
+                line2 = rangeText();
             } else {
-                // The step average is in row 2 during a workout.
-                var lbl = _target.stepLabel;
-                line2 = (lbl.length() > 0 ? lbl + " " : "") + rangeText();
+                var fill = statusColor(status);
+                dc.setColor(fill, fill);
+                dc.fillRectangle(0, 0, w, Layout.pct(h, Layout.BAND_FILL));
+                textColor = Graphics.COLOR_WHITE;
+                if (_target.source == WorkoutTarget.SOURCE_GOAL && _target.kind == WorkoutTarget.KIND_PACE) {
+                    line2 = goalLine();
+                } else {
+                    // The step average is in row 2 during a workout.
+                    var lbl = _target.stepLabel;
+                    line2 = (lbl.length() > 0 ? lbl + " " : "") + rangeText();
+                }
             }
         }
+        drawBandText(dc, w, h, textColor, line1, line2);
+    }
 
-        if (fill != null) {
-            dc.setColor(fill, fill);
-            dc.fillRectangle(0, 0, w, Layout.pct(h, 28));
-        }
-        dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-        if (line2.length() > 0) {
-            dc.drawText(cx, Layout.pct(h, 16), Layout.bandFont(h), line1, vc);
-            dc.drawText(cx, Layout.pct(h, 23), Layout.labelFont(), line2, vc);
+    // Before START: is the course loaded?
+    hidden function drawPrestartBand(dc as Graphics.Dc, w as Number, h as Number) as Void {
+        var line1;
+        var line2 = "";
+        var color = Graphics.COLOR_ORANGE;
+        if (!_tracker.hasCourse() && _treadmill) {
+            // Indoors there is no course to load; distance is the watch's.
+            line1 = "TREADMILL";
+            color = Graphics.COLOR_DK_GREEN;
+        } else if (!_tracker.hasCourse()) {
+            line1 = "NO COURSE";
+            line2 = "NAVIGATION > COURSES";
+        } else if (_tracker.lengthMismatch) {
+            line1 = "CHECK LENGTH";
+            line2 = Fmt.dist(_tracker.loadedLengthMeters() as Float, _distUnit)
+                    + " LOADED, " + Fmt.dist(_officialLen * _distUnit, _distUnit) + " SET";
         } else {
-            dc.drawText(cx, Layout.pct(h, 18), Layout.bandFont(h), line1, vc);
+            line1 = "COURSE READY";
+            line2 = Fmt.dist(_tracker.lengthMeters() as Float, _distUnit) + _unitText;
+            color = Graphics.COLOR_DK_GREEN;
+        }
+        drawBandText(dc, w, h, color, line1, line2);
+    }
+
+    hidden function drawBandText(dc as Graphics.Dc, w as Number, h as Number, color as Number,
+                                 line1 as String, line2 as String) as Void {
+        var cx = w / 2;
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        if (line2.length() > 0) {
+            dc.drawText(cx, Layout.pct(h, Layout.BAND_Y1), Layout.bandFont(h), line1, Layout.VCENTER);
+            dc.drawText(cx, Layout.pct(h, Layout.BAND_Y2), Layout.labelFont(), line2, Layout.VCENTER);
+        } else {
+            dc.drawText(cx, Layout.pct(h, Layout.BAND_Y_SINGLE), Layout.bandFont(h), line1, Layout.VCENTER);
         }
     }
 
@@ -813,26 +830,20 @@ class CourseRunField extends WatchUi.DataField {
             textColor = Graphics.COLOR_WHITE;
             labelColor = Graphics.COLOR_WHITE;
         }
-        var unit = _distUnit == Fmt.M_PER_MI ? " MI" : " KM";
         var label;
         if (_timerMs == 0) {
             label = _tracker.hasCourse() ? "COURSE READY" : (_treadmill ? "TREADMILL" : "NO COURSE");
         } else if (_gel.showing(_timerMs)) {
             label = "GEL " + _gel.count.toString();
             labelColor = Graphics.COLOR_ORANGE;
-        } else if (_tracker.mode == CourseTracker.MODE_COURSE) {
-            label = "COURSE" + unit;
-        } else if (_tracker.mode == CourseTracker.MODE_OFF) {
-            label = "OFF COURSE" + unit;
-            labelColor = Graphics.COLOR_ORANGE;
         } else {
-            label = (_treadmill ? "TREADMILL" : "GPS") + unit;
+            label = modeLabel();
+            labelColor = modeColor(labelColor);
         }
         var cx = w / 2;
-        var vc = Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER;
         dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx, h * 42 / 100, Graphics.FONT_NUMBER_MILD, Fmt.dist(meters, _distUnit), vc);
+        dc.drawText(cx, Layout.pct(h, 42), Graphics.FONT_NUMBER_MILD, Fmt.dist(meters, _distUnit), Layout.VCENTER);
         dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx, h * 82 / 100, Graphics.FONT_XTINY, label, vc);
+        dc.drawText(cx, Layout.pct(h, 82), Graphics.FONT_XTINY, label, Layout.VCENTER);
     }
 }
