@@ -75,7 +75,9 @@ module CourseRunTests {
             t = s * 1000;
             b.add(t, d);
         }
-        Test.assert(near(b.smoothedSpeed(t, d, 10000), 5.0, 0.01));
+        // Samples are 2 s apart, so the window edge interpolates across
+        // the speed change: 5.05 here, not exactly 5.
+        Test.assert(near(b.smoothedSpeed(t, d, 10000), 5.0, 0.1));
         Test.assert((b.smoothedSpeed(t, d, 30000) as Float) < 4.7);
         return true;
     }

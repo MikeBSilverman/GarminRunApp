@@ -55,7 +55,7 @@ In Git Bash, monkeydo needs `/t` (Windows style) and `MSYS2_ARG_CONV_EXCL='*'` s
 - `tools/replay.py run.fit [--course COURSE.fit] [--goal-hr 145 [--hr-zones ...]]` replays a FIT file through Python ports of the models (CourseTracker too, with a course); update it with logic changes.
 
 ## Constraints
-- Memory: FR970 and fenix 8 give data fields 128 KB (others 256 KB). Current peak ≈ 19 KB. Avoid layouts XML and big string tables.
+- Memory: FR970, fenix 8 and fenix 9 give data fields 128 KB (others 256 KB). Current peak ≈ 19 KB. Avoid layouts XML and big string tables.
 - FR965 fonts are large: hero `FONT_NUMBER_MEDIUM`, paces `FONT_LARGE`; `FONT_NUMBER_HOT`/`NUMBER_MILD` for paces overflow the columns. Screens ≤ 320 px step down one size.
 - `getCurrentWorkoutStep()` is documented as throwing in data fields but works; keep it in try/catch.
-- Devices: fr955/965/265/265s/570 (42/47mm)/970, fenix 7 family, epix 2 Pro, fenix 8 family.
+- Devices: fr955/965/265/265s/570 (42/47mm)/970, fenix 7 family, epix 2 Pro, fenix 8 family, fenix 9 family (0.8.4, a user asked; 9 Pro 51mm is 466 px, the Pro Solar models are MIP 260/280).
