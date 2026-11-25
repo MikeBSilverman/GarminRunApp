@@ -2,6 +2,7 @@
 
 Usage: python tools/mkpreview.py <scenario> [dark]
 Scenarios: prestart | goal | hrgoal | workout | workoutcap | gel | rest | split | mismatch | offcourse | togo | compact
+           | lap | lapfin | lapoff | lapnogoal
            | treadpre | treadmill
 Output: bin/preview/ (a full project copy with CourseRunField.mc patched)."""
 import os
@@ -96,6 +97,24 @@ seeds = {
         _target.source = WorkoutTarget.SOURCE_WORKOUT; _target.hasWorkout = true; _target.stepLabel = "TEMPO";
         _target.evaluate(3.0, 152);
         _showToGo = true;
+''',
+    "lap": common + '''
+        _target.setGoal(540.0, Fmt.M_PER_MI, 10.0);
+        _target.evaluate(2.90, 162);
+        _lapStartMs = _timerMs - 280000; _lapStartDist = _tracker.courseDist - 1000.0;
+''',
+    "lapfin": common + '''
+        _target.setGoal(540.0, Fmt.M_PER_MI, 10.0);
+        _target.evaluate(2.90, 162);
+        _lapStartMs = _timerMs - 280000; _lapStartDist = _tracker.courseDist - 1000.0;
+        _timerMs += 3000; _lastTimerMs = _timerMs;
+''',
+    "lapoff": common + '''
+        _lapStartMs = _timerMs - 280000; _lapStartDist = _tracker.courseDist - 1000.0;
+        _tracker.mode = CourseTracker.MODE_OFF;
+''',
+    "lapnogoal": common + '''
+        _lapStartMs = _timerMs - 900000; _lapStartDist = _tracker.courseDist - 1700.0;
 ''',
     "compact": common + '''
         _target.setGoal(540.0, Fmt.M_PER_MI, 10.0);

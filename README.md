@@ -38,7 +38,8 @@ Race courses are measured along the shortest legal line and nobody runs it. GPS 
 | **FIN 1:57:35** | Projected finish time, from remaining course distance and a blend of your average and recent pace. |
 | **MI 5  8:52** | Flashes for 6 s at each course mile (or km) with that split. Native auto-laps use GPS distance, so they drift from the mile markers; these don't. |
 | **COURSE AVG** | Time divided by course distance. Differs from the watch's own Avg Pace on purpose. |
-| **LAST MI / LAST KM / LAP PACE** | Right-hand pace. Choose in settings. Shows AVG (1ST) dimmed until the first full mile. |
+| **LAST MI / LAST KM / LAP PACE** | Right-hand pace. Choose in settings. Shows AVG (1ST) dimmed until the first full mile. After you press LAP the rolling pace restarts: LAP AVG (pace since the lap) until the lap is a mile long, then LAST MI again. |
+| **4.87 \| 0.62 LAP MI** | Once you press LAP (outside a workout), the big number moves left, one size smaller, and the lap's distance appears beside it. The projected finish moves to the band's second line, taking turns with AHEAD/BEHIND every 3 s when both don't fit. |
 | **STEP AVG / LAST 30S / LEFT / STEP** | During a workout the screen follows the step: the left-hand pace is the step's average (your rep split) in place of the overall average, the right-hand pace is the last 30 s (the number behind the band colour, restarted at each step: a mile window never fills on a rep and would include the recovery), and the timer counts down the time left in a timed step (LEFT) or counts up in a distance or open step (STEP). The overall time is on the watch's own pages. |
 
 Colours follow the activity's background setting (light or dark). Units follow the watch's System > Units.

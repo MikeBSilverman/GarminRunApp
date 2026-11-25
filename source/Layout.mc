@@ -11,6 +11,7 @@ module Layout {
     const BAND_Y2 = 23;
     const BAND_Y_SINGLE = 18;   // band line 1 alone
     const BAND_FILL = 28;       // coloured band height
+    const BAND_TEXT_MAX = 80;   // widest band line 2, % of width (bezel chord)
     const HERO_Y = 39;
     const LABEL_Y = 53;         // hero label: clear of the hero (Mike's ask)
     const ROW2_Y = 61;
@@ -38,6 +39,11 @@ module Layout {
 
     function heroFont(h as Number) as Graphics.FontDefinition {
         return isSmall(h) ? Graphics.FONT_NUMBER_MILD : Graphics.FONT_NUMBER_MEDIUM;
+    }
+
+    // The total beside the lap distance once a lap is pressed: one size down.
+    function splitHeroFont(h as Number) as Graphics.FontDefinition {
+        return isSmall(h) ? Graphics.FONT_LARGE : Graphics.FONT_NUMBER_MILD;
     }
 
     function valueFont(h as Number) as Graphics.FontDefinition {

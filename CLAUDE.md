@@ -13,6 +13,7 @@ Full-screen run data field (Monkey C, `type="datafield"`). Primary device: **fr9
 - `source/RunState.mc`: Resume Later state, `[VER=2, startSec, timerMs, lapMs, lapDist, stepMs, stepDist, tracker.snapshot()]` in Application.Storage key "run"; `decode()` validates (format, same activity start, not ahead of the timer) and clamps.
 - `source/Fmt.mc`, `source/Layout.mc`: formatting and percentage layout (ported/trimmed from `C:\Source\LiftApp\SRAGarmin`). Layout holds the row/column percentages as named consts (`HERO_Y`, `ROW2_Y`, ...), `VCENTER` and `drawPill()`; Fmt has `secPerMeter()` (every pace from ms + metres) and `splitDash()` (HR specs).
 - `source/Props.mc`: guarded `Application.Properties` reads/writes shared by the field and the settings menu (`num`, `str`, `set`; `set` reloads the field). Property keys stay as literals in CourseRunField.mc (check.py looks for them there).
+- `source/LapLogic.mc`: the lap decisions as pure functions so they can be unit tested (the field's drawing can't be): `split()`, `rightMode()` (RIGHT_STEP / RIGHT_LAP / RIGHT_LAP_AVG / RIGHT_ROLLING), `fallsBackToAverage()`, `bandLine2()` + `FIN_SWAP_MS`.
 - `tests/CourseRunTests.mc`: `(:test)` unit tests (behaviour, hostile inputs, heap-growth check). Stripped from normal builds.
 - `scripts/check.py`: static checks CI runs (permissions allowlist, no network/GPS APIs, no keys/secrets, XML + FIT ids, guarded firmware calls, LF endings). `scripts/test.sh` = checks + unit tests.
 
@@ -51,6 +52,7 @@ In Git Bash, monkeydo needs `/t` (Windows style) and `MSYS2_ARG_CONV_EXCL='*'` s
 - Monkey C NaN quirk: `NaN >= 0.0` is true (`<` is false, `NaN != NaN` true). Check stored floats with `x != x`; `0.0/0.0` throws at runtime, `Math.sqrt(-1.0)` gives NaN in tests.
 - Workout step changes call `onWorkoutStepComplete` but not `onTimerLap`, so the step callback restarts the lap too.
 - Treadmill profile (`Activity.getProfileInfo().subSport == SUB_SPORT_TREADMILL`, read once in `initialize`): band says TREADMILL before START instead of NO COURSE, hero label TREADMILL MI instead of GPS MI.
+- Manual laps (0.9.0, Mike; he doesn't use Auto Lap, which a field can't tell from LAP): `lapSplit()` (`LapLogic.split`: `_lapStartMs > 0`, not in a workout) splits the hero into total (`Layout.splitHeroFont`, at ROW2_LEFT_X) | lap distance (valueFont, ROW2_RIGHT_X) with labels under each; the hero label's FIN moves to band line 2 (`withFinish`: appended if it fits `BAND_TEXT_MAX`, else alternating every `LapLogic.FIN_SWAP_MS` with the band's own line 2; "AHEAD 0:09 · 1:57:35" is 424 px at FONT_SMALL on the FR965). The rolling right-hand pace restarts at a lap: LAP AVG until the lap covers the window, then LAST MI. Gel and split flashes still take the centred label slot.
 - HR goal band line 2 is the range (`UNDER 145 BPM` for a ceiling), not AHEAD/BEHIND.
 - `tools/replay.py run.fit [--course COURSE.fit] [--goal-hr 145 [--hr-zones ...]]` replays a FIT file through Python ports of the models (CourseTracker too, with a course); update it with logic changes.
 

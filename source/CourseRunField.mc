@@ -559,6 +559,12 @@ class CourseRunField extends WatchUi.DataField {
         return _target.hasWorkout && _timerMs > 0;
     }
 
+    // After a lap on a run without a workout the hero splits into total |
+    // lap distance and the projected finish moves to the band.
+    hidden function lapSplit() as Boolean {
+        return LapLogic.split(_lapStartMs, inWorkout());
+    }
+
     hidden function goalLine() as String {
         var d = goalDeltaSec();
         if (d == null) {
@@ -617,18 +623,35 @@ class CourseRunField extends WatchUi.DataField {
             return;
         }
 
-        drawBand(dc, w, h, dim, status);
-        dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w / 2, Layout.pct(h, Layout.HERO_Y), Layout.heroFont(h), Fmt.dist(hero, _distUnit), Layout.VCENTER);
-        drawHeroLabel(dc, w, h, fg, dim, toGo != null);
+        var split = lapSplit();
+        drawBand(dc, w, h, dim, status, split);
+        drawHero(dc, w, h, fg, hero, split);
+        drawHeroLabel(dc, w, h, fg, dim, toGo != null, split);
         var workout = inWorkout();
         drawRow2(dc, w, h, fg, dim, workout);
         drawRow3(dc, w, h, fg, dim, workout);
     }
 
-    // Under the hero: a split flash, a gel reminder, or mode + projected finish.
+    // The big number; after a lap, the total one size down beside the lap's
+    // distance, over row 2's columns.
+    hidden function drawHero(dc as Graphics.Dc, w as Number, h as Number, fg as Number,
+                             hero as Float, split as Boolean) as Void {
+        var y = Layout.pct(h, Layout.HERO_Y);
+        dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
+        if (!split) {
+            dc.drawText(w / 2, y, Layout.heroFont(h), Fmt.dist(hero, _distUnit), Layout.VCENTER);
+            return;
+        }
+        dc.drawText(Layout.pct(w, Layout.ROW2_LEFT_X), y, Layout.splitHeroFont(h),
+                    Fmt.dist(hero, _distUnit), Layout.VCENTER);
+        dc.drawText(Layout.pct(w, Layout.ROW2_RIGHT_X), y, Layout.valueFont(h),
+                    Fmt.dist(_tracker.courseDist - _lapStartDist, _distUnit), Layout.VCENTER);
+    }
+
+    // Under the hero: a split flash, a gel reminder, or mode + projected finish
+    // (after a lap: the total's and the lap's labels; the finish is in the band).
     hidden function drawHeroLabel(dc as Graphics.Dc, w as Number, h as Number, fg as Number,
-                                  dim as Number, toGo as Boolean) as Void {
+                                  dim as Number, toGo as Boolean, split as Boolean) as Void {
         var cx = w / 2;
         var y = Layout.pct(h, Layout.LABEL_Y);
         var label;
@@ -645,6 +668,13 @@ class CourseRunField extends WatchUi.DataField {
         } else {
             label = toGo ? "TO GO" + _unitText : modeLabel();
             color = toGo ? dim : modeColor(dim);
+            if (split) {
+                dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(Layout.pct(w, Layout.ROW2_LEFT_X), y, Layout.labelFont(), label, Layout.VCENTER);
+                dc.setColor(dim, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(Layout.pct(w, Layout.ROW2_RIGHT_X), y, Layout.labelFont(), "LAP" + _unitText, Layout.VCENTER);
+                return;
+            }
             var fin = projectedFinishMs();
             if (fin != null) {
                 label = label + " · FIN " + Fmt.timer(fin);
@@ -666,26 +696,31 @@ class CourseRunField extends WatchUi.DataField {
         var leftSpm = avg;
         var rightLabel;
         var rightSpm = null;
-        if (workout) {
+        var rollM = rollingWindowM();
+        var mode = LapLogic.rightMode(workout, _rollingUnit, _lapStartMs,
+                                      _tracker.courseDist - _lapStartDist, rollM);
+        if (mode == LapLogic.RIGHT_STEP) {
             leftLabel = "STEP AVG";
             leftSpm = Fmt.secPerMeter(_timerMs - _stepStartMs, _tracker.courseDist - _stepStartDist);
             rightLabel = "LAST " + (_smoothMs / 1000).toString() + "S";
             var sv = stepSpeed();
             rightSpm = sv != null ? 1.0 / sv : null;
-        } else if (_rollingUnit == 3) {
+        } else if (mode == LapLogic.RIGHT_LAP) {
             rightLabel = "LAP PACE";
-            rightSpm = Fmt.secPerMeter(_timerMs - _lapStartMs, _tracker.courseDist - _lapStartDist);
+            rightSpm = lapSecPerMeter();
+        } else if (mode == LapLogic.RIGHT_LAP_AVG) {
+            rightLabel = "LAP AVG";
+            rightSpm = lapSecPerMeter();
         } else {
-            var rollM = rollingWindowM();
             rightLabel = rollM == Fmt.M_PER_MI ? "LAST MI" : "LAST KM";
             rightSpm = _buf.rollingSecPerMeter(_timerMs, _tracker.courseDist, rollM);
         }
         var rightColor = fg;
-        if (rightSpm == null && !workout) {
+        if (rightSpm == null && LapLogic.fallsBackToAverage(mode)) {
             // Before a full window is covered, show the average so far, dimmed.
             rightSpm = avg;
             rightColor = dim;
-            if (_rollingUnit != 3) {
+            if (mode == LapLogic.RIGHT_ROLLING) {
                 rightLabel = "AVG (1ST)";
             }
         }
@@ -702,6 +737,10 @@ class CourseRunField extends WatchUi.DataField {
         dc.drawText(lx, ly, Layout.labelFont(), leftLabel, Layout.VCENTER);
         dc.drawText(rx, ly, Layout.labelFont(), rightLabel, Layout.VCENTER);
         dc.drawLine(w / 2, Layout.pct(h, Layout.DIVIDER_TOP), w / 2, Layout.pct(h, Layout.DIVIDER_BOTTOM));
+    }
+
+    hidden function lapSecPerMeter() as Float or Null {
+        return Fmt.secPerMeter(_timerMs - _lapStartMs, _tracker.courseDist - _lapStartDist);
     }
 
     hidden function paceText(spm as Float or Null) as String {
@@ -747,7 +786,7 @@ class CourseRunField extends WatchUi.DataField {
     }
 
     hidden function drawBand(dc as Graphics.Dc, w as Number, h as Number, dim as Number,
-                             status as Number) as Void {
+                             status as Number, split as Boolean) as Void {
         if (_timerMs == 0) {
             drawPrestartBand(dc, w, h);
             return;
@@ -778,7 +817,26 @@ class CourseRunField extends WatchUi.DataField {
                 }
             }
         }
+        if (split) {
+            line2 = withFinish(dc, w, h, line2);
+        }
         drawBandText(dc, w, h, textColor, line1, line2);
+    }
+
+    // Band line 2 with the projected finish added (it leaves the hero label
+    // once the hero splits): on one line if it fits the chord, else taking
+    // turns with the band's own text (LapLogic.bandLine2; "AHEAD 0:09 ·
+    // 1:57:35" is 424 px at FONT_SMALL on the FR965, the chord about 363).
+    hidden function withFinish(dc as Graphics.Dc, w as Number, h as Number, line2 as String) as String {
+        var fin = projectedFinishMs();
+        if (fin == null) {
+            return line2;
+        }
+        var finTimer = Fmt.timer(fin);
+        var fits = line2.length() > 0
+            && dc.getTextDimensions(LapLogic.joined(line2, finTimer), Layout.bandFont(h))[0]
+               <= Layout.pct(w, Layout.BAND_TEXT_MAX);
+        return LapLogic.bandLine2(line2, finTimer, fits, _timerMs);
     }
 
     // Before START: is the course loaded?

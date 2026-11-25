@@ -830,6 +830,68 @@ module CourseRunTests {
         return true;
     }
 
+    // ---- LapLogic ----------------------------------------------------------
+
+    // The hero splits only once LAP has been pressed, and never in a workout.
+    (:test)
+    function lapSplitOnlyAfterLap(logger as Logger) as Boolean {
+        Test.assert(!LapLogic.split(0, false));          // no lap yet
+        Test.assert(LapLogic.split(600000, false));      // lap pressed
+        Test.assert(!LapLogic.split(600000, true));      // workout: steps, not laps
+        Test.assert(!LapLogic.split(0, true));
+        return true;
+    }
+
+    // Right-hand pace: rolling until a lap, then the lap's average until the
+    // lap is a full window long, then rolling again; the lap setting and a
+    // workout step win.
+    (:test)
+    function lapRightPaceMode(logger as Logger) as Boolean {
+        var mi = Fmt.M_PER_MI;
+        // No lap: rolling, however short the run.
+        Test.assertEqual(LapLogic.rightMode(false, 0, 0, 200.0, mi), LapLogic.RIGHT_ROLLING);
+        Test.assertEqual(LapLogic.rightMode(false, 0, 0, 5000.0, mi), LapLogic.RIGHT_ROLLING);
+        // Lap pressed: its average for the first mile of the lap...
+        Test.assertEqual(LapLogic.rightMode(false, 0, 600000, 0.0, mi), LapLogic.RIGHT_LAP_AVG);
+        Test.assertEqual(LapLogic.rightMode(false, 0, 600000, 1609.0, mi), LapLogic.RIGHT_LAP_AVG);
+        // ...then the rolling mile, which now lies inside the lap.
+        Test.assertEqual(LapLogic.rightMode(false, 0, 600000, 1609.344, mi), LapLogic.RIGHT_ROLLING);
+        Test.assertEqual(LapLogic.rightMode(false, 0, 600000, 3000.0, mi), LapLogic.RIGHT_ROLLING);
+        // A km window flips back sooner.
+        Test.assertEqual(LapLogic.rightMode(false, 2, 600000, 999.0, Fmt.M_PER_KM), LapLogic.RIGHT_LAP_AVG);
+        Test.assertEqual(LapLogic.rightMode(false, 2, 600000, 1000.0, Fmt.M_PER_KM), LapLogic.RIGHT_ROLLING);
+        // "Lap average" setting: always the lap pace, lap or not.
+        Test.assertEqual(LapLogic.rightMode(false, 3, 0, 200.0, mi), LapLogic.RIGHT_LAP);
+        Test.assertEqual(LapLogic.rightMode(false, 3, 600000, 200.0, mi), LapLogic.RIGHT_LAP);
+        // Workout: the step's LAST 30S whatever else is set.
+        Test.assertEqual(LapLogic.rightMode(true, 0, 600000, 200.0, mi), LapLogic.RIGHT_STEP);
+        Test.assertEqual(LapLogic.rightMode(true, 3, 0, 200.0, mi), LapLogic.RIGHT_STEP);
+        // A hostile negative lap distance (restore clamps it; belt and braces).
+        Test.assertEqual(LapLogic.rightMode(false, 0, 600000, -50.0, mi), LapLogic.RIGHT_LAP_AVG);
+
+        // Only the overall-run paces fall back to the dimmed average.
+        Test.assert(LapLogic.fallsBackToAverage(LapLogic.RIGHT_ROLLING));
+        Test.assert(LapLogic.fallsBackToAverage(LapLogic.RIGHT_LAP));
+        Test.assert(!LapLogic.fallsBackToAverage(LapLogic.RIGHT_LAP_AVG));
+        Test.assert(!LapLogic.fallsBackToAverage(LapLogic.RIGHT_STEP));
+        return true;
+    }
+
+    // Band line 2 after a lap: FIN alone, both on one line when they fit,
+    // else 3 s turns on timer time, starting with the band's own text.
+    (:test)
+    function lapBandLine2(logger as Logger) as Boolean {
+        Test.assertEqual(LapLogic.bandLine2("", "1:57:35", false, 0), "FIN 1:57:35");
+        Test.assertEqual(LapLogic.bandLine2("", "1:57:35", true, 4000), "FIN 1:57:35");
+        Test.assertEqual(LapLogic.bandLine2("ON GOAL", "1:57:35", true, 4000), "ON GOAL · 1:57:35");
+        Test.assertEqual(LapLogic.bandLine2("AHEAD 0:09", "1:57:35", false, 0), "AHEAD 0:09");
+        Test.assertEqual(LapLogic.bandLine2("AHEAD 0:09", "1:57:35", false, 2999), "AHEAD 0:09");
+        Test.assertEqual(LapLogic.bandLine2("AHEAD 0:09", "1:57:35", false, 3000), "FIN 1:57:35");
+        Test.assertEqual(LapLogic.bandLine2("AHEAD 0:09", "1:57:35", false, 5999), "FIN 1:57:35");
+        Test.assertEqual(LapLogic.bandLine2("AHEAD 0:09", "1:57:35", false, 6000), "AHEAD 0:09");
+        return true;
+    }
+
     // ---- Fmt ---------------------------------------------------------------
 
     (:test)
